@@ -1,23 +1,17 @@
-import QtQuick		2.12
-import JASP.Module	1.0
+import QtQuick
+import JASP.Module
 
 Description
 {
-	name:			"jaspSurvival"
-	title : 		qsTr("Survival Analysis")
+	title : 		qsTr("Survival")
 	description:	qsTr("Perform analyses of censored time to event data.")
-	requiresData:	true
-//	icon:			"survival-analysis.svg"
-	version:		"0.18.1"
-	author:			"JASP Team"
-	maintainer:		"JASP Team <info@jasp-stats.org>"
-	website:		"jasp-stats.org"
-	license:		"GPL (>= 2)"
-
+	icon:			"survival-analysis.svg"
+	hasWrappers: 	false
+	
 	GroupTitle
 	{
 		title:	qsTr("Classical")
-//		icon:	"survival-analysis.svg"
+		icon:	"survival-analysis.svg"
 	}
 
 	Analysis
@@ -25,7 +19,6 @@ Description
 		menu:			qsTr("Non-parametric")
 		title:			qsTr("Non-parametric Survival Analysis")
 		func:			"NonParametricSurvivalAnalysis"
-		requiresData:	true
 	}
 
 	Analysis
@@ -33,14 +26,13 @@ Description
 		menu:			qsTr("Semi-parametric")
 		title:			qsTr("Semi-parametric Survival Analysis")
 		func:			"SemiParametricSurvivalAnalysis"
-    	requiresData:	true
 	}
-  
+
   	Analysis
 	{
 		menu:			qsTr("Parametric")
 		title:			qsTr("Parametric Survival Analysis")
 		func:			"ParametricSurvivalAnalysis"
-		requiresData:	true
 	}
+
 }

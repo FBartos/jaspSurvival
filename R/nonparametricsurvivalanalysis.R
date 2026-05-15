@@ -20,11 +20,14 @@ NonParametricSurvivalAnalysis <- function(jaspResults, dataset, options, state =
   # non-parametric allows only for right censored data -- set the options for generic functions downstream
   options[["censoringType"]] <- "right"
 
-  if (.saSurvivalReady(options))
-    dataset <- .saReadDataset(dataset, options)
+  if (.saSurvivalReady(options)) {
+    dataset <- .saCheckDataset(dataset, options, type = "KM")
+    dataset <- .sanpWeightDataset(dataset, options)
+  }
 
-  saveRDS(options, file = "C:/JASP/options.RDS")
-  saveRDS(dataset, file = "C:/JASP/dataset.RDS")
+  # Censoring summary table
+  if (options[["censoringSummary"]])
+    .saCensoringSummaryTable(jaspResults, dataset, options, weighted = TRUE)
 
   if (.saSurvivalReady(options)) {
     .sanpFitKaplanMeier(jaspResults, dataset, options)
@@ -32,12 +35,10 @@ NonParametricSurvivalAnalysis <- function(jaspResults, dataset, options, state =
   }
 
   .sanpSummaryTable(jaspResults, dataset, options)
+  .sanpTestsTable(jaspResults, dataset, options)
 
-  if (options[["tests"]])
-    .sanpTestsTable(jaspResults, dataset, options)
-
-  if (options[["survivalCurvePlot"]])
-    .sanpSurvivalPlot(jaspResults, dataset, options)
+  if (options[["plot"]])
+    .saSurvivalPlot(jaspResults, dataset, options, type = "KM")
 
   if (options[["lifeTable"]])
     .sanpLifeTable(jaspResults, dataset, options)
@@ -45,8 +46,18 @@ NonParametricSurvivalAnalysis <- function(jaspResults, dataset, options, state =
   return()
 }
 
-.sanpDependencies <- c("timeToEvent", "eventStatus", "eventIndicator", "factors")
+.sanpDependencies <- c("timeToEvent", "eventStatus", "eventIndicator", "strata", "weights")
 
+.sanpWeightDataset   <- function(dataset, options) {
+
+  # manually apply weights to the dataset
+  # the kaplan-meier etc do not have a weight argument
+
+  if (options[["weights"]] != "")
+    dataset <- dataset[rep(seq_len(nrow(dataset)), dataset[[options[["weights"]]]]), ]
+
+  return(dataset)
+}
 .sanpFitKaplanMeier  <- function(jaspResults, dataset, options) {
 
   if (!is.null(jaspResults[["fit"]]))
@@ -56,7 +67,7 @@ NonParametricSurvivalAnalysis <- function(jaspResults, dataset, options, state =
   fitContainer$dependOn(.sanpDependencies)
   jaspResults[["fit"]] <- fitContainer
 
-  fit <- try(survival::survfit(
+  fit <- try(survfit(
     formula = .saGetFormula(options, type = "KM"),
     type    = "kaplan-meier",
     data    = dataset
@@ -71,7 +82,7 @@ NonParametricSurvivalAnalysis <- function(jaspResults, dataset, options, state =
 }
 .sanpFitTests        <- function(jaspResults, dataset, options) {
 
-  if (length(options[["factors"]]) == 0)
+  if (length(options[["strata"]]) == 0)
     return()
 
   if (options[["testsLogRank"]] && is.null(jaspResults[["testLogRank"]])) {
@@ -80,7 +91,7 @@ NonParametricSurvivalAnalysis <- function(jaspResults, dataset, options, state =
     tempContainer$dependOn(c(.sanpDependencies, "testsLogRank"))
     jaspResults[["testLogRank"]] <- tempContainer
 
-    fit <- try(survival::survdiff(
+    fit <- try(survdiff(
       formula = .saGetFormula(options, type = "KM"),
       data    = dataset
     ))
@@ -94,7 +105,7 @@ NonParametricSurvivalAnalysis <- function(jaspResults, dataset, options, state =
     tempContainer$dependOn(c(.sanpDependencies, "testsPetoAndPeto"))
     jaspResults[["testPetoAndPeto"]] <- tempContainer
 
-    fit <- try(survival::survdiff(
+    fit <- try(survdiff(
       formula = .saGetFormula(options, type = "KM"),
       data    = dataset,
       rho     = 1
@@ -109,7 +120,7 @@ NonParametricSurvivalAnalysis <- function(jaspResults, dataset, options, state =
     tempContainer$dependOn(c(.sanpDependencies, "testsFlemmingHarrington", "testsFlemmingHarringtonRho"))
     jaspResults[["testFlemmingHarrington"]] <- tempContainer
 
-    fit <- try(survival::survdiff(
+    fit <- try(survdiff(
       formula = .saGetFormula(options, type = "KM"),
       data    = dataset,
       rho     = options[["testsFlemmingHarringtonRho"]]
@@ -133,7 +144,7 @@ NonParametricSurvivalAnalysis <- function(jaspResults, dataset, options, state =
   # create empty table
   overtitleCi <- gettextf("%s%% CI", 95)
 
-  if (length(options[["factors"]]) != 0)
+  if (length(options[["strata"]]) != 0)
     summaryTable$addColumnInfo(name = "strata",     title = gettext("Strata"),          type = "string")
 
   summaryTable$addColumnInfo(name = "n",                title = gettext("N"),               type = "integer")
@@ -167,6 +178,9 @@ NonParametricSurvivalAnalysis <- function(jaspResults, dataset, options, state =
   if (!is.null(jaspResults[["testsTable"]]))
     return()
 
+  if (!(options[["testsLogRank"]] || options[["testsPetoAndPeto"]] || options[["testsFlemmingHarrington"]]))
+    return()
+
   testsTable <- createJaspTable(title = gettext("Tests Table"))
   testsTable$dependOn(c(.sanpDependencies, "testsLogRank", "testsPetoAndPeto", "testsFlemmingHarrington", "testsFlemmingHarringtonRho"))
   testsTable$position <- 2
@@ -177,8 +191,8 @@ NonParametricSurvivalAnalysis <- function(jaspResults, dataset, options, state =
   testsTable$addColumnInfo(name = "df",       title = gettext("df"),           type = "integer")
   testsTable$addColumnInfo(name = "p",        title = gettext("p"),            type = "pvalue")
 
-  if (length(options[["factors"]]) == 0) {
-    testsTable$addFootnote(gettext("At least one factor needs to be specified"))
+  if (length(options[["strata"]]) == 0) {
+    testsTable$addFootnote(gettext("At least one strata needs to be specified"))
     return()
   }
 
@@ -205,90 +219,6 @@ NonParametricSurvivalAnalysis <- function(jaspResults, dataset, options, state =
     else
       testsTable$addRows(.sanpExtractTest(fit, gettext("Flemming-Harrington")))
   }
-
-  return()
-}
-.sanpSurvivalPlot    <- function(jaspResults, dataset, options) {
-
-  if (!is.null(jaspResults[["surivalPlot"]]))
-    return()
-
-  surivalPlot <- createJaspPlot(
-    title = gettext("Kaplan-Meier Survival Curve"),
-    width  = 450,
-    height = 320 +
-      if (options[["survivalCurvePlotRiskTable"]]) 200 else 0 +
-      if (options[["survivalCurveCensoringPlot"]]) 200 else 0)
-  surivalPlot$dependOn(c(.sanpDependencies, "survivalCurvePlot", "survivalCurvePlotConfidenceInterval",
-                         "survivalCurvePlotRiskTable", "survivalCurvePlotRiskTableCumulative",
-                         "survivalCurveCensoringPlot", "survivalCurveCensoringPlotCumulative",
-                         "colorPalette"))
-  surivalPlot$position <- 3
-  jaspResults[["surivalPlot"]] <- surivalPlot
-
-  if (is.null(jaspResults[["fit"]]))
-    return()
-
-  fit <- jaspResults[["fit"]][["object"]]
-
-  if (jaspBase::isTryError(fit)) {
-    return()
-  }
-
-  #fitLifeTable <- try(.sanpKaplanMeierFitLifeTable(fit, dataset, options, plot = TRUE))
-  #
-  #if (jaspBase::isTryError(fitLifeTable)) {
-  #  surivalPlot$setError(fitLifeTable)
-  #  return()
-  #}
-  #
-  #tempPlot <- try(.sanpPlotLifeTable(fitLifeTable, options))
-
-
-  tempPlot  <- try(survminer::ggsurvplot(
-    fit,
-    data = dataset,
-
-    palette  = jaspGraphs::JASPcolors(palette = options[["colorPalette"]]),
-    conf.int = options[["survivalCurvePlotConfidenceInterval"]],
-
-    title = gettext("Survival curves"),
-
-    risk.table        = options[["survivalCurvePlotRiskTable"]],
-    cumevents         = options[["survivalCurvePlotRiskTableCumulative"]],
-    risk.table.height = 0.35,
-
-    ncensor.plot        = options[["survivalCurveCensoringPlot"]],
-    cumcensor           = options[["survivalCurveCensoringPlotCumulative"]],
-    ncensor.plot.height = 0.35
-  ))
-
-
-  # TODO: legend label names are too long and when translated within JASP, there is too much empty space
-
-  # TODO: This would add theme JASP to the figures, but the "table" figure throws an error
-  # for(i in seq_along(tempPlot)) {
-  #   if (ggplot2::is.ggplot(tempPlot[[i]]))
-  #     tempPlot[[i]] <- tempPlot[[i]] + jaspGraphs::themeJaspRaw() + jaspGraphs::geom_rangeframe()
-  # }
-
-  # TODO: This can create the grid but losses the x-axis correspondence across all figures
-  # re-construct plot array
-  tempPlot <- tempPlot[names(tempPlot) %in% c("plot", "table", "ncensor.plot")]
-  tempPlot <- jaspGraphs:::jaspGraphsPlot$new(subplots = tempPlot, layout = matrix(seq_along(tempPlot), nrow = length(tempPlot)))
-
-  # TODO: We tried this to use their original grid set-up, but the validator keeps throwing errors
-  # class(tempPlot) <- c(class(tempPlot), "ggplot")
-  # obj <- list(tempPlot)
-  # class(obj) <- "ggplot"
-  # tempPlot <- jaspGraphs:::jaspGraphsPlot$new(subplots = obj, plotFunction = \(x) survminer:::print.ggsurvplot(x[[1]]))
-
-  if (jaspBase::isTryError(tempPlot)) {
-    surivalPlot$setError(tempPlot)
-    return()
-  }
-
-  surivalPlot$plotObject <- tempPlot
 
   return()
 }
@@ -324,7 +254,7 @@ NonParametricSurvivalAnalysis <- function(jaspResults, dataset, options, state =
   }
 
 
-  if (length(options[["factors"]]) == 0) {
+  if (length(options[["strata"]]) == 0) {
 
     tempTable <- .sanpEmptyLifeTable()
     tempTable$setData(fitLifeTable)
@@ -347,7 +277,6 @@ NonParametricSurvivalAnalysis <- function(jaspResults, dataset, options, state =
 
   return()
 }
-
 
 .sanpKaplanMeierFitSummary   <- function(fit) {
 
@@ -413,12 +342,12 @@ NonParametricSurvivalAnalysis <- function(jaspResults, dataset, options, state =
 }
 .sanpPlotLifeTable           <- function(fitLifeTable, options) {
 
-  if (length(options[["factors"]]) == 0) {
+  if (length(options[["strata"]]) == 0) {
 
     tempPlot <- ggplot2::ggplot(fitLifeTable) +
       jaspGraphs::geom_line(mapping = ggplot2::aes(x = time, y = survival))
 
-    if (options[["survivalCurvePlotConfidenceInterval"]])
+    if (options[["survivalCurveplotCi"]])
       tempPlot <- tempPlot + ggplot2::geom_ribbon(mapping = ggplot2::aes(x = time, ymin = lowerCI, ymax = upperCI), alpha = 0.1, size = 1)
 
     if (options[["survivalCurvePlotDataRug"]])
@@ -429,7 +358,7 @@ NonParametricSurvivalAnalysis <- function(jaspResults, dataset, options, state =
     tempPlot <- ggplot2::ggplot(fitLifeTable) +
       jaspGraphs::geom_line(mapping = ggplot2::aes(x = time, y = survival, group = strata, color = strata))
 
-    if (options[["survivalCurvePlotConfidenceInterval"]])
+    if (options[["survivalCurveplotCi"]])
       tempPlot <- tempPlot + ggplot2::geom_ribbon(mapping = ggplot2::aes(x = time, ymin = lowerCI, ymax = upperCI, group = strata, fill = strata), alpha = 0.1, size = 1)
 
     if (options[["survivalCurvePlotDataRug"]])
@@ -445,7 +374,7 @@ NonParametricSurvivalAnalysis <- function(jaspResults, dataset, options, state =
     jaspGraphs::scale_x_continuous(name = gettext("Time")) +
     jaspGraphs::scale_y_continuous(name = gettext("Survival")) +
     jaspGraphs::geom_rangeframe(sides = 'bl') +
-    jaspGraphs::themeJaspRaw(legend.position = if (length(options[["factors"]]) != 0) options[["survivalCurvePlotLegend"]])
+    jaspGraphs::themeJaspRaw(legend.position = if (length(options[["strata"]]) != 0) options[["survivalCurvePlotLegend"]])
 
   return(tempPlot)
 }
