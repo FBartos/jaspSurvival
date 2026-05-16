@@ -1803,6 +1803,7 @@ ParametricSurvivalAnalysis <- function(jaspResults, dataset, options, state = NU
   # overlay them in one canvas, following the prediction-plot merge pattern.
   if (options[["probabilityPlotMergePlotsAcrossDistributions"]] && options[["distribution"]] %in% "all" && !options[["interpretModel"]] %in% c("bestAic", "bestBic")) {
     fit <- .sapExtractFit(jaspResults, options, type = "byModel")
+    fit <- .sapProbabilityPlotFilterSelectedModel(fit, options)
   } else {
     fit <- .sapExtractFit(jaspResults, options, type = "selected")
     fit <- .sapFlattenFit(fit, options)
@@ -1831,6 +1832,25 @@ ParametricSurvivalAnalysis <- function(jaspResults, dataset, options, state = NU
   )
 
   return()
+}
+
+.sapProbabilityPlotFilterSelectedModel <- function(fit, options) {
+
+  if (!.sapMultipleModels(options) || options[["interpretModel"]] %in% c("all", "bestAic", "bestBic"))
+    return(fit)
+
+  keep <- vapply(fit, function(fitGroup) {
+    modelIds <- vapply(fitGroup, function(x) {
+      modelId <- attr(x, "modelId")
+      if (is.null(modelId) || length(modelId) == 0 || is.na(modelId[1]))
+        return(NA_character_)
+      return(as.character(modelId[1]))
+    }, character(1))
+
+    return(any(modelIds == options[["interpretModel"]], na.rm = TRUE))
+  }, logical(1))
+
+  return(fit[keep])
 }
 
 .sapProbabilityPlotFun <- function(fit, options) {
@@ -2096,6 +2116,9 @@ ParametricSurvivalAnalysis <- function(jaspResults, dataset, options, state = NU
   if (!tiesHandler %in% c("highest", "lowest", "mean", "sequential"))
     return(data)
 
+  if (tiesHandler == "sequential")
+    return(data[order(data[["time"]], data[["adjustedRank"]]), , drop = FALSE])
+
   tiedRanks <- stats::aggregate(
     data[["adjustedRank"]],
     by = list(time = data[["time"]]),
@@ -2108,10 +2131,9 @@ ParametricSurvivalAnalysis <- function(jaspResults, dataset, options, state = NU
     time         = tiedRanks[["time"]],
     adjustedRank = switch(
       tiesHandler,
-      "highest"    = highest,
-      "lowest"     = lowest,
-      "mean"       = (highest + lowest) / 2,
-      "sequential" = highest - cumsum(highest - lowest)
+      "highest" = highest,
+      "lowest"  = lowest,
+      "mean"    = (highest + lowest) / 2
     )
   )
 
