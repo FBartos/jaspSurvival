@@ -685,7 +685,7 @@ ParametricSurvivalAnalysis <- function(jaspResults, dataset, options, state = NU
   estimatesTable$addColumnInfo(name = "coefficient",    title = "",                         type = "string")
   estimatesTable$addColumnInfo(name = "est",            title = gettext("Estimate"),        type = "number")
   estimatesTable$addColumnInfo(name = "se",             title = gettext("Standard Error"),  type = "number")
-  if (is.null(options[["coefficientsConfidenceInterval"]]) || isTRUE(options[["coefficientsConfidenceInterval"]])) {
+  if (options[["coefficientsConfidenceInterval"]]) {
     overtitleCi <- gettextf("%s%% CI", 100 * options[["coefficientsConfidenceIntervalLevel"]])
     estimatesTable$addColumnInfo(name = "lower", title = gettext("Lower"), type = "number", overtitle = overtitleCi)
     estimatesTable$addColumnInfo(name = "upper", title = gettext("Upper"), type = "number", overtitle = overtitleCi)
@@ -1801,7 +1801,7 @@ ParametricSurvivalAnalysis <- function(jaspResults, dataset, options, state = NU
   # Probability-paper diagnostics are distribution-level checks by default.
   # When requested, group the selected distributions by model/subgroup and
   # overlay them in one canvas, following the prediction-plot merge pattern.
-  if (isTRUE(options[["probabilityPlotMergePlotsAcrossDistributions"]]) && options[["distribution"]] %in% "all" && !options[["interpretModel"]] %in% c("bestAic", "bestBic")) {
+  if (options[["probabilityPlotMergePlotsAcrossDistributions"]] && options[["distribution"]] %in% "all" && !options[["interpretModel"]] %in% c("bestAic", "bestBic")) {
     fit <- .sapExtractFit(jaspResults, options, type = "byModel")
   } else {
     fit <- .sapExtractFit(jaspResults, options, type = "selected")
@@ -2380,10 +2380,6 @@ ParametricSurvivalAnalysis <- function(jaspResults, dataset, options, state = NU
 
   return(switch(
     legendPosition,
-    "bottomRight" = "right",
-    "topRight"    = "right",
-    "bottomLeft"  = "left",
-    "topLeft"     = "left",
     "bottom"      = "bottom",
     "right"       = "right",
     "left"        = "left",
