@@ -318,10 +318,19 @@ Form
 				checked:	false
 				info: qsTr("Include a table with coefficient estimates.")
 
-				CIField
+				CheckBox
 				{
-					name: "coefficientsConfidenceIntervalLevel"
-					label: qsTr("Confidence interval")
+					name:				"coefficientsConfidenceInterval"
+					label:				qsTr("Confidence intervals")
+					checked:			true
+					childrenOnSameRow:	true
+					info: qsTr("Include confidence intervals for the coefficients.")
+
+					CIField
+					{
+						name: "coefficientsConfidenceIntervalLevel"
+						info: qsTr("Set the confidence level for the confidence intervals.")
+					}
 				}
 			}
 
@@ -455,15 +464,16 @@ Form
 
 				CheckBox
 				{
-					label:		qsTr("Confidence intervals")
-					name:		"predictionsConfidenceInterval"
-					checked:	true
+					label:				qsTr("Confidence intervals")
+					name:				"predictionsConfidenceInterval"
+					checked:			true
+					childrenOnSameRow:	true
 					info: qsTr("Include confidence intervals for the figures and tables.")
 
 					CIField
 					{
 						name: "predictionsConfidenceIntervalLevel"
-						label: qsTr("Confidence interval")
+						info: qsTr("Set the confidence level for the confidence intervals.")
 					}
 				}
 
@@ -778,6 +788,172 @@ Form
 				values:		[
 					{ label: qsTr("Response"),				value: "response"},
 					{ label: qsTr("Cox-Snell"),				value: "coxSnell"}
+				]
+			}
+		}
+
+		CheckBox
+		{
+			id:			probabilityPlot
+			name:		"probabilityPlot"
+			label:		qsTr("Probability plot")
+			enabled:	censoringTypeRight.checked
+			info: qsTr("Create a probability plot to assess how well the selected parametric distribution describes the observed failure times. Only available when Censoring Type is set to Right.")
+
+			DropDown
+			{
+				name:		"probabilityPlotCanvas"
+				label:		qsTr("Canvas")
+				startValue:	"weibull"
+				info: qsTr("Select the probability-paper scale. A distribution matching the selected canvas appears approximately as a straight line.")
+				values:
+				[
+					{ label: qsTr("Weibull"),		value: "weibull"},
+					{ label: qsTr("Log-normal"),	value: "lognormal"},
+					{ label: qsTr("Log-logistic"),	value: "loglogistic"}
+				]
+			}
+
+			CheckBox
+			{
+				name:		"probabilityPlotEmpiricalPoints"
+				label:		qsTr("Empirical points")
+				checked:	true
+				info: qsTr("Plot empirical failure probability points based on the observed failure times.")
+
+				CheckBox
+				{
+					name:		"probabilityPlotPointCoordinates"
+					label:		qsTr("Coordinates")
+					checked:	false
+					info: qsTr("Display the time and failure probability next to each empirical point.")
+				}
+			}
+
+			CheckBox
+			{
+				name:		"probabilityPlotFittedCurve"
+				label:		qsTr("Fitted curve")
+				checked:	true
+				info: qsTr("Plot the fitted parametric distribution curve.")
+			}
+
+			CheckBox
+			{
+				name:		"probabilityPlotMergePlotsAcrossDistributions"
+				label:		qsTr("Merge plots across distributions")
+				checked:	false
+				enabled:	distribution.value === "all" && (modelTerms.count == 1 || (modelTerms.count > 1 && interpretModel.value != "bestAic" && interpretModel.value != "bestBic"))
+				info: qsTr("Merge the probability plots across distributions into a single plot. Only available when no model selection is being performed.")
+			}
+
+			CheckBox
+			{
+				name:				"probabilityPlotConfidenceInterval"
+				label:				qsTr("Confidence intervals")
+				checked:			true
+				childrenOnSameRow:	true
+				info: qsTr("Include confidence interval bounds for the fitted probability curve.")
+
+				CIField
+				{
+					name:			"probabilityPlotConfidenceIntervalLevel"
+					defaultValue:	90
+					info: qsTr("Set the confidence level for the probability plot confidence intervals.")
+				}
+			}
+
+			CheckBox
+			{
+				name:		"probabilityPlotGrid"
+				label:		qsTr("Grid")
+				checked:	true
+				info: qsTr("Display probability-paper grid lines.")
+			}
+
+			DropDown
+			{
+				name:		"probabilityPlotPlottingPosition"
+				label:		qsTr("Plotting position")
+				startValue:	"median"
+				info: qsTr("Select the method used to compute empirical failure probability plotting positions.")
+				values:
+				[
+					{ label: qsTr("Median"),			value: "median"},
+					{ label: qsTr("Benard"),			value: "benard"},
+					{ label: qsTr("Hazen"),				value: "hazen"},
+					{ label: qsTr("Mean"),				value: "mean"},
+					{ label: qsTr("Kaplan-Meier"),		value: "kaplanMeier"},
+					{ label: qsTr("Blom"),				value: "blom"}
+				]
+			}
+
+			DropDown
+			{
+				name:		"probabilityPlotRankAdjustment"
+				label:		qsTr("Rank adjustment")
+				startValue:	"johnson"
+				info: qsTr("Select the rank adjustment method for right-censored observations.")
+				values:
+				[
+					{ label: qsTr("Johnson"),		value: "johnson"},
+					{ label: qsTr("Kaplan-Meier"),	value: "kaplanMeier"}
+				]
+			}
+
+			DropDown
+			{
+				name:		"probabilityPlotTiesHandler"
+				label:		qsTr("Ties")
+				startValue:	"none"
+				info: qsTr("Select how tied failure times are handled when computing empirical plotting positions.")
+				values:
+				[
+					{ label: qsTr("None"),			value: "none"},
+					{ label: qsTr("Highest"),		value: "highest"},
+					{ label: qsTr("Lowest"),			value: "lowest"},
+					{ label: qsTr("Mean"),			value: "mean"},
+					{ label: qsTr("Sequential"),		value: "sequential"}
+				]
+			}
+
+			DropDown
+			{
+				name:		"probabilityPlotLegend"
+				label:		qsTr("Legend")
+				startValue:	"right"
+				info: qsTr("Choose the legend position for the probability plot.")
+				values:
+				[
+					{ label: qsTr("Bottom"),	value: "bottom"},
+					{ label: qsTr("Right"),		value: "right"},
+					{ label: qsTr("Left"),		value: "left"},
+					{ label: qsTr("Top"),		value: "top"},
+					{ label: qsTr("None"),		value: "none"}
+				]
+			}
+
+			ColorPalette
+			{
+				name:	"probabilityPlotColorPalette"
+				info: qsTr("Customize the color palette used in the probability plot.")
+			}
+
+			DropDown
+			{
+				name:		"probabilityPlotTheme"
+				label:		qsTr("Theme")
+				startValue:	"jasp"
+				info: qsTr("Select the theme for the probability plot's appearance.")
+				values:
+				[
+					{ label: "JASP",					value: "jasp"},
+					{ label: qsTr("Detailed"),			value: "detailed"},
+					{ label: qsTr("White background"),	value: "whiteBackground"},
+					{ label: qsTr("Light"),				value: "light"},
+					{ label: qsTr("Minimal")	,		value: "minimal"},
+					{ label: "APA",						value: "apa"},
+					{ label: "pubr",					value: "pubr"}
 				]
 			}
 		}
