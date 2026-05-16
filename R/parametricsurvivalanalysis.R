@@ -73,7 +73,7 @@ ParametricSurvivalAnalysis <- function(jaspResults, dataset, options, state = NU
     .sapResidualsVsPredictedPlot(jaspResults, options)
   if (options[["residualPlotResidualHistogram"]])
     .sapResidualHistogramPlot(jaspResults, options)
-  if (options[["probabilityPlot"]])
+  if (isTRUE(options[["probabilityPlot"]]))
     .sapProbabilityPlot(jaspResults, options)
 
   return()
@@ -1801,7 +1801,7 @@ ParametricSurvivalAnalysis <- function(jaspResults, dataset, options, state = NU
   # Probability-paper diagnostics are distribution-level checks by default.
   # When requested, group the selected distributions by model/subgroup and
   # overlay them in one canvas, following the prediction-plot merge pattern.
-  if (options[["probabilityPlotMergePlotsAcrossDistributions"]] && options[["distribution"]] %in% "all" && !options[["interpretModel"]] %in% c("bestAic", "bestBic")) {
+  if (isTRUE(options[["probabilityPlotMergePlotsAcrossDistributions"]]) && options[["distribution"]] %in% "all" && !options[["interpretModel"]] %in% c("bestAic", "bestBic")) {
     fit <- .sapExtractFit(jaspResults, options, type = "byModel")
     fit <- .sapProbabilityPlotFilterSelectedModel(fit, options)
   } else {
