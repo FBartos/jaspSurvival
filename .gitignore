@@ -61,3 +61,5 @@ _processedLockFile.lock
 renv/activate.R
 .Rprofile
 .positai
+AGENTS.md
+/.codex
