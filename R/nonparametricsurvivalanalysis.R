@@ -53,8 +53,11 @@ NonParametricSurvivalAnalysis <- function(jaspResults, dataset, options, state =
   # manually apply weights to the dataset
   # the kaplan-meier etc do not have a weight argument
 
-  if (options[["weights"]] != "")
+  missingObservations <- .saMissingObservations(dataset)
+  if (options[["weights"]] != "") {
     dataset <- dataset[rep(seq_len(nrow(dataset)), dataset[[options[["weights"]]]]), ]
+    attr(dataset, "missingObservations") <- missingObservations
+  }
 
   return(dataset)
 }
@@ -168,8 +171,7 @@ NonParametricSurvivalAnalysis <- function(jaspResults, dataset, options, state =
   fitSummary <- .sanpKaplanMeierFitSummary(fit)
   summaryTable$setData(fitSummary)
 
-  if (!is.null(attr(dataset, "na.action")))
-    summaryTable$addFootnote(gettextf("%1$i observations ommited due to missing values.", length(attr(dataset, "na.action"))))
+  .saAddMissingObservationsFootnote(summaryTable, dataset)
 
   return()
 }

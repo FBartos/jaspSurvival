@@ -22,6 +22,8 @@
 }
 .saCheckDataset       <- function(dataset, options, type) {
 
+  nOriginal <- nrow(dataset)
+
   # load the data
   eventVariable <- if (options[["censoringType"]] != "interval") options[["eventStatus"]]
   timeVariable  <- switch(
@@ -57,6 +59,7 @@
     # recode the event status variable
     dataset[[eventVariable]] <- .saRecodeEventStatus(dataset, options)
   }
+  attr(dataset, "missingObservations") <- nOriginal - nrow(dataset)
 
   # check of errors
   .hasErrors(
@@ -109,6 +112,18 @@
   }
 
   return(dataset)
+}
+.saMissingObservations <- function(x) {
+
+  return(as.integer(attr(x, "missingObservations", exact = TRUE)))
+}
+.saAddMissingObservationsFootnote <- function(tempTable, x) {
+
+  missingObservations <- .saMissingObservations(x)
+  if (length(missingObservations) > 0L && missingObservations > 0L)
+    tempTable$addFootnote(gettextf("%1$i observations omitted due to missing values.", missingObservations))
+
+  return()
 }
 .saRecodeEventStatus  <- function(dataset, options) {
 
@@ -325,14 +340,12 @@
   # based on jaspMixedModels::.mmVariableNames
 
   # deal with non-standard columns names
-  if (!grepl("JaspColumn", varName)) {
-    if (varName == "(Intercept)")
-      return("Intercept")
-    if (varName == "Global")
-      return("Global")
-    if (grepl("gamma:", varName, fixed = TRUE) || grepl("gauss:", varName, fixed = TRUE) || grepl("t:", varName, fixed = TRUE))
-      return(paste0("(frailty) ", varName))
-  }
+  if (varName == "(Intercept)")
+    return("Intercept")
+  if (varName == "Global")
+    return("Global")
+  if (grepl("gamma:", varName, fixed = TRUE) || grepl("gauss:", varName, fixed = TRUE) || grepl("t:", varName, fixed = TRUE))
+    return(paste0("(frailty) ", varName))
 
   for (vn in variables) {
     inf <- regexpr(vn, varName, fixed = TRUE)

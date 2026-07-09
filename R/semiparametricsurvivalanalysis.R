@@ -249,8 +249,7 @@ SemiParametricSurvivalAnalysis <- function(jaspResults, dataset, options, state 
 
   summaryTable$addFootnote(gettextf("%1$i observations with %2$i events.", fit[["n"]], fit[["nevent"]]))
 
-  if (!is.null(attr(dataset, "na.action")))
-    summaryTable$addFootnote(gettextf("%1$i observations ommited due to missing values.", length(attr(dataset, "na.action"))))
+  .saAddMissingObservationsFootnote(summaryTable, dataset)
 
   nullPredictors <- .saGetPredictors(options, null = TRUE)
   if (length(nullPredictors) != 0)
@@ -760,7 +759,7 @@ SemiParametricSurvivalAnalysis <- function(jaspResults, dataset, options, state 
     }
 
     if (!options[["coefficientHazardRatioEstimatesIncludeFrailty"]])
-      estimatesFit <- estimatesFit[grepl("JaspColumn", rownames(estimatesFit)), , drop=FALSE]
+      estimatesFit <- estimatesFit[!grepl("frailty", rownames(estimatesFit), fixed = TRUE), , drop=FALSE]
 
   } else {
 

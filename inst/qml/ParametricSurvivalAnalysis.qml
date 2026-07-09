@@ -24,6 +24,14 @@ Form
 {
 	info: qsTr("This analysis performs a parametric survival analysis.")
 
+	property bool	categoricalPredictionLevelsPossible:		factors.count > 0 && modelTerms.countVariables > 0
+	property bool	survivalTimeSeriesControlsAvailable:		(survivalTimeMergePlotsAcrossDistributions.checked && survivalTimeMergePlotsAcrossDistributions.enabled) || categoricalPredictionLevelsPossible
+	property bool	lifeTimeSeriesControlsAvailable:			(lifeTimeMergePlotsAcrossDistributions.checked && lifeTimeMergePlotsAcrossDistributions.enabled) || categoricalPredictionLevelsPossible
+	property bool	lifeTimePlotSelected:					survivalProbabilityPlot.checked || hazardPlot.checked || cumulativeHazardPlot.checked || restrictedMeanSurvivalTimePlot.checked
+	property bool	predictionPlotSelected:					survivalTimePlot.checked || lifeTimePlotSelected
+	property bool	predictionLegendPaletteAvailable:			(survivalTimePlot.checked && survivalTimeSeriesControlsAvailable) || (lifeTimePlotSelected && lifeTimeSeriesControlsAvailable)
+	property bool	probabilityPlotLegendPaletteAvailable:	probabilityPlotFittedCurve.checked && ((probabilityPlotMergePlotsAcrossDistributions.checked && probabilityPlotMergePlotsAcrossDistributions.enabled) || categoricalPredictionLevelsPossible)
+
 	VariablesForm
 	{
 		removeInvisibles:	true
@@ -95,6 +103,7 @@ Form
 
 		AssignedVariablesList
 		{
+			id:				 	covariates
 			name:			 	"covariates"
 			title:			 	qsTr("Covariates")
 			allowedColumns:		["scale"]
@@ -103,6 +112,7 @@ Form
 
 		AssignedVariablesList
 		{
+			id:				 	factors
 			name:			 	"factors"
 			title:			 	qsTr("Factors")
 			allowedColumns:		["nominal"]
@@ -227,6 +237,7 @@ Form
 
 		DropDown
 		{
+			id:					interpretModel
 			name:				"interpretModel"
 			label:				qsTr("Interpret model")
 			enabled:			modelTerms.count > 1
@@ -374,6 +385,7 @@ Form
 
 				CheckBox
 				{
+					id:			survivalTimePlot
 					label:		qsTr("Plot")
 					name:		"survivalTimePlot"
 					info: qsTr("Include a plot with the predicted survival estimates.")
@@ -451,9 +463,10 @@ Form
 			CheckBox
 			{
 				label:		qsTr("Merge plots across distributions")
+				id:			survivalTimeMergePlotsAcrossDistributions
 				name:		"survivalTimeMergePlotsAcrossDistributions"
 				checked:	false
-				enabled:	distribution.value === "all" && (modelTerms.count  == 1 || (modelTerms.count > 1 && interpretModel.value != "bestAic" && interpretModel.value != "bestBic"))
+				enabled:	distribution.value === "all" && (modelTerms.count == 1 || (modelTerms.count > 1 && interpretModel.value !== "bestAic" && interpretModel.value !== "bestBic"))
 				info: qsTr("Merge the plots for survival probability across distributions into a single plot. Only available when no model selection is being performed.")
 			}
 
@@ -482,7 +495,8 @@ Form
 					name:		"plotLegend"
 					label:		qsTr("Legend")
 					startValue:	"right"
-					info: qsTr("Choose the position of the legend on the plot: Bottom, Right, Left, Top, or None. Only available when predictors or multiple distributions are specified.")
+					enabled:	predictionLegendPaletteAvailable
+					info: qsTr("Choose the position of the legend on prediction plots with multiple displayed curves.")
 					values:
 					[
 						{ label: qsTr("Bottom"),	value: "bottom"},
@@ -493,14 +507,19 @@ Form
 					]
 				}
 
-				ColorPalette {}
+				ColorPalette
+				{
+					enabled:	predictionLegendPaletteAvailable
+					info: qsTr("Customize the color palette used in prediction plots with multiple displayed curves.")
+				}
 
 				DropDown
 				{
 					name:		"plotTheme"
 					label:		qsTr("Theme")
 					startValue:	"jasp"
-					info: qsTr("Select the theme for the plot's appearance. The detailed theme works only for 'Survival probabilities' plots")
+					enabled:	predictionPlotSelected
+					info: qsTr("Select the theme for prediction plots. The detailed theme works only for 'Survival probabilities' plots.")
 					values:
 					[
 						{ label: "JASP",					value: "jasp"},
@@ -530,24 +549,25 @@ Form
 
 				CheckBox
 				{
+					id:			survivalProbabilityPlot
 					label:		qsTr("Plot")
 					name:		"survivalProbabilityPlot"
 					info: qsTr("Include a plot with the predicted survival probabilities.")
 
 					CheckBox
 					{
-						name:		"survivalProbabilityPlotAddKaplanMeier"
-						label:		qsTr("Add Kaplan-Meier")
+						name:		"survivalProbabilityPlotKaplanMeier"
+						label:		qsTr("Kaplan-Meier")
 						enabled:	censoringTypeRight.checked
-						info: qsTr("Add a Kaplan-Meier curve to the plot. Only available when Censoring Type is set to Right.")
+						info: qsTr("Show a Kaplan-Meier curve in the plot. Only available when Censoring Type is set to Right.")
 					}
 
 					CheckBox
 					{
-						name:		"survivalProbabilityPlotAddCensoringEvents"
-						label:		qsTr("Add censoring events")
+						name:		"survivalProbabilityPlotCensoringEvents"
+						label:		qsTr("Censoring events")
 						enabled:	censoringTypeRight.checked
-						info: qsTr("Add censoring events as rug marks to the plot. Only available when Censoring Type is set to Right.")
+						info: qsTr("Show censoring events as rug marks in the plot. Only available when Censoring Type is set to Right.")
 					}
 
 					DropDown
@@ -599,6 +619,7 @@ Form
 
 				CheckBox
 				{
+					id:		hazardPlot
 					label: qsTr("Plot")
 					name: "hazardPlot"
 					info: qsTr("Include a plot with the predicted hazard estimates.")
@@ -618,6 +639,7 @@ Form
 
 				CheckBox
 				{
+					id:		cumulativeHazardPlot
 					label: qsTr("Plot")
 					name: "cumulativeHazardPlot"
 					info: qsTr("Include a plot with the predicted cumulative hazard estimates.")
@@ -637,6 +659,7 @@ Form
 
 				CheckBox
 				{
+					id:		restrictedMeanSurvivalTimePlot
 					label: qsTr("Plot")
 					name: "restrictedMeanSurvivalTimePlot"
 					info: qsTr("Include a plot with the restricted mean survival time estimates.")
@@ -732,9 +755,10 @@ Form
 			CheckBox
 			{
 				label:		qsTr("Merge plots across distributions")
+				id:			lifeTimeMergePlotsAcrossDistributions
 				name:		"lifeTimeMergePlotsAcrossDistributions"
 				checked:	false
-				enabled:	distribution.value === "all" && (modelTerms.count == 1 || (modelTerms.count > 1 && interpretModel.value != "bestAic" && interpretModel.value != "bestBic"))
+				enabled:	distribution.value === "all" && (modelTerms.count == 1 || (modelTerms.count > 1 && interpretModel.value !== "bestAic" && interpretModel.value !== "bestBic"))
 				info: qsTr("Merge the plots for survival time, survival probabilities, hazard, cumulative hazard, and restricted mean survival across distributions into a single plot. Only available when no model selection is being performed.")
 			}
 
@@ -805,10 +829,11 @@ Form
 				name:		"probabilityPlotCanvas"
 				label:		qsTr("Canvas")
 				startValue:	"weibull"
-				info: qsTr("Select the probability-paper scale. A distribution matching the selected canvas appears approximately as a straight line.")
+				info: qsTr("Select the probability-paper scale. A distribution matching the selected canvas appears approximately as a straight line. The exponential canvas uses linear time and cumulative-hazard probability scaling; the other canvases use log time.")
 				values:
 				[
 					{ label: qsTr("Weibull"),		value: "weibull"},
+					{ label: qsTr("Exponential"),	value: "exponential"},
 					{ label: qsTr("Log-normal"),	value: "lognormal"},
 					{ label: qsTr("Log-logistic"),	value: "loglogistic"}
 				]
@@ -833,6 +858,7 @@ Form
 			CheckBox
 			{
 				name:		"probabilityPlotFittedCurve"
+				id:			probabilityPlotFittedCurve
 				label:		qsTr("Fitted curve")
 				checked:	true
 				info: qsTr("Plot the fitted curve from the selected parametric model.")
@@ -840,10 +866,19 @@ Form
 
 			CheckBox
 			{
+				name:		"probabilityPlotCensoringEvents"
+				label:		qsTr("Censoring events")
+				enabled:	censoringTypeRight.checked
+				info: qsTr("Show censored observations as rug marks at the bottom of the plot. Only available when Censoring Type is set to Right.")
+			}
+
+			CheckBox
+			{
 				name:		"probabilityPlotMergePlotsAcrossDistributions"
+				id:			probabilityPlotMergePlotsAcrossDistributions
 				label:		qsTr("Merge plots across distributions")
 				checked:	false
-				enabled:	distribution.value === "all" && (modelTerms.count == 1 || (modelTerms.count > 1 && interpretModel.value != "bestAic" && interpretModel.value != "bestBic"))
+				enabled:	distribution.value === "all" && (modelTerms.count == 1 || (modelTerms.count > 1 && interpretModel.value !== "bestAic" && interpretModel.value !== "bestBic"))
 				info: qsTr("Merge the probability plots across distributions into a single plot. Only available when no model selection is being performed.")
 			}
 
@@ -922,7 +957,8 @@ Form
 				name:		"probabilityPlotLegend"
 				label:		qsTr("Legend")
 				startValue:	"right"
-				info: qsTr("Choose the legend position for the probability plot.")
+				enabled:	probabilityPlotLegendPaletteAvailable
+				info: qsTr("Choose the legend position for probability plots with multiple fitted curves.")
 				values:
 				[
 					{ label: qsTr("Bottom"),	value: "bottom"},
@@ -935,8 +971,9 @@ Form
 
 			ColorPalette
 			{
-				name:	"probabilityPlotColorPalette"
-				info: qsTr("Customize the color palette used in the probability plot.")
+				name:		"probabilityPlotColorPalette"
+				enabled:	probabilityPlotLegendPaletteAvailable
+				info: qsTr("Customize the color palette used in probability plots with multiple fitted curves.")
 			}
 
 			DropDown
@@ -944,6 +981,7 @@ Form
 				name:		"probabilityPlotTheme"
 				label:		qsTr("Theme")
 				startValue:	"jasp"
+				enabled:	probabilityPlot.checked
 				info: qsTr("Select the theme for the probability plot's appearance.")
 				values:
 				[
@@ -966,7 +1004,7 @@ Form
 		Group
 		{
 			title:		qsTr("Selected Parametric Distributions")
-			enabled:	distribution.value === "all" || distribution.value === "bestAIC" || distribution.value === "bestBIC"
+			enabled:	distribution.value === "all" || distribution.value === "bestAic" || distribution.value === "bestBic"
 
 
 			CheckBox { name: "selectedParametricDistributionExponential";				label: qsTr("Exponential");						checked: true }
