@@ -230,6 +230,7 @@
   }
 
   index <- do.call(rbind, index)
+  index[["row"]] <- seq_len(nrow(index))
 
   # remove the full dataset fits if not requested anymore
   if (options[["subgroup"]] != "" && !options[["includeFullDatasetInSubgroupAnalysis"]])
@@ -260,51 +261,59 @@
   out   <- jaspResults[["fit"]][["object"]]
   index <- .sapFitIndex(out, options)
 
-  # extract models by subgroups (and models)
+  # select the models within each subgroup
+  if (type %in% c("selected", "byDistribution", "byModel"))
+    index <- .sapSelectIndex(index, options, type)
+
+  # group the models into output sections by subgroups (and models)
   if (type == "byModel") {
     groups <- .sapGroupIndexModels(index, options, output)
   } else {
     groups <- .sapGroupIndex(index, options)
   }
 
-  # return only the selected models
-  if (type %in% c("selected", "byDistribution"))
-    groups <- lapply(groups, .sapSelectIndex, options = options, type = type)
-
   return(lapply(groups, .sapIndexFits, out = out))
 }
 .sapSelectIndex         <- function(index, options, type) {
 
-  selectDistributions <- .sapMultipleFamilies(options)   && .sapFamilySelection(options)    %in% c("bestAic", "bestBic")
-  selectComponents    <- .sapMultipleComponents(options) && .sapComponentSelection(options) %in% c("bestAic", "bestBic")
-  selectModels        <- .sapMultipleModels(options)     && options[["interpretModel"]]     !=  "all" && type != "byDistribution"
+  # the models are selected within each subgroup by traversing the axes hierarchically (distribution - components - model):
+  # - an axis with all levels splits the remaining selection by its levels
+  # - an axis with the best level keeps the level of the best fitting model across all models of the current selection
+  #   (e.g., the best distribution is the distribution of the best fitting model across all numbers of components and models)
+  # - an axis with a specified level keeps only that level
+  # the output grouping (i.e., comparing models across distributions / components) does not affect the selection
+  axes <- list(
+    list(column = "family",     multiple = .sapMultipleFamilies(options),                           selection = .sapFamilySelection(options)),
+    list(column = "components", multiple = .sapMultipleComponents(options),                         selection = .sapComponentSelection(options)),
+    list(column = "modelId",    multiple = .sapMultipleModels(options) && type != "byDistribution", selection = options[["interpretModel"]])
+  )
 
-  # select the best distribution
-  if (selectDistributions) {
-    best <- which.min(index[[.sapSelectionCriterion(.sapFamilySelection(options))]])
-    if (length(best) > 0)
-      index <- index[index[["distribution"]] == index[["distribution"]][best], , drop = FALSE]
-  }
+  groups <- split(index, factor(index[["subgroup"]], levels = unique(index[["subgroup"]])))
 
-  # select the best number of components
-  if (selectComponents) {
-    best <- which.min(index[[.sapSelectionCriterion(.sapComponentSelection(options))]])
-    if (length(best) > 0)
-      index <- index[index[["components"]] == index[["components"]][best], , drop = FALSE]
-  }
+  for (axis in axes) {
 
-  # select the best / specified model
-  if (selectModels) {
-    if (options[["interpretModel"]] %in% c("bestAic", "bestBic")) {
-      best <- which.min(index[[.sapSelectionCriterion(options[["interpretModel"]])]])
-      if (length(best) > 0)
-        index <- index[index[["modelTitle"]] == index[["modelTitle"]][best], , drop = FALSE]
+    if (!axis[["multiple"]])
+      next
+
+    if (axis[["selection"]] == "all") {
+      groups <- do.call(c, lapply(unname(groups), function(group) {
+        unname(split(group, factor(group[[axis[["column"]]]], levels = unique(group[[axis[["column"]]]]))))
+      }))
+    } else if (axis[["selection"]] %in% c("bestAic", "bestBic")) {
+      groups <- lapply(groups, function(group) {
+        best <- which.min(group[[.sapSelectionCriterion(axis[["selection"]])]])
+        if (length(best) == 0)
+          return(group)
+        return(group[group[[axis[["column"]]]] == group[[axis[["column"]]]][best], , drop = FALSE])
+      })
     } else {
-      index <- index[index[["modelId"]] == options[["interpretModel"]], , drop = FALSE]
+      groups <- lapply(groups, function(group) group[group[[axis[["column"]]]] == axis[["selection"]], , drop = FALSE])
     }
   }
 
-  return(index)
+  selectedRows <- unlist(lapply(groups, function(group) group[["row"]]), use.names = FALSE)
+
+  return(index[index[["row"]] %in% selectedRows, , drop = FALSE])
 }
 .sapGroupIndex          <- function(index, options) {
 
@@ -449,25 +458,6 @@
   }
 
   return()
-}
-
-.sapFilterSelectedModel <- function(fit, options) {
-
-  if (!.sapMultipleModels(options) || options[["interpretModel"]] %in% c("all", "bestAic", "bestBic"))
-    return(fit)
-
-  keep <- vapply(fit, function(fitGroup) {
-    modelIds <- vapply(fitGroup, function(x) {
-      modelId <- attr(x, "modelId")
-      if (is.null(modelId) || length(modelId) == 0 || is.na(modelId[1]))
-        return(NA_character_)
-      return(as.character(modelId[1]))
-    }, character(1))
-
-    return(any(modelIds == options[["interpretModel"]], na.rm = TRUE))
-  }, logical(1))
-
-  return(fit[keep])
 }
 
 # analysis axes: subgroup - family (distribution) - number of components - model

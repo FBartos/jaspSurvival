@@ -197,7 +197,10 @@
 
   data <- list()
   for(i in 1:(length(fit) - 1)) {
-    data[[i]] <- .sapRowSequentialModelComparisonTable(fit[[i]], fit[[i + 1]])
+    # models are compared only within the same distribution
+    if (attr(fit[[i]], "family") != attr(fit[[i + 1]], "family") || attr(fit[[i]], "components") != attr(fit[[i + 1]], "components"))
+      next
+    data[[length(data) + 1]] <- .sapRowSequentialModelComparisonTable(fit[[i]], fit[[i + 1]])
   }
   data <- .saSafeRbind(data)
 
@@ -388,7 +391,8 @@
   return(data.frame(
     .sapRowModelInformation(fit),
     coefficient  = rownames(fit[["res"]]),
-    covMat
+    covMat,
+    check.names  = FALSE
   ))
 }
 
@@ -519,7 +523,7 @@
 }
 .sapSelectionFootnote     <- function(data, options) {
 
-  if (.sapFamilySelection(options) %in% c("bestAic", "bestBic") && !options[["interpretModel"]] %in% c("bestAic", "bestBic") && options[["compareModelsAcrossDistributions"]]) {
+  if (.sapFamilySelection(options) %in% c("bestAic", "bestBic") && !options[["interpretModel"]] %in% c("bestAic", "bestBic") && (options[["compareModelsAcrossDistributions"]] || !.sapMultipleModels(options))) {
 
     selected <- which.min(data[[.sapSelectionCriterion(.sapFamilySelection(options))]])
     message <- gettextf("All following output is based on the best fitting %1$s distribution.", data[["distribution"]][selected])
@@ -574,10 +578,7 @@
     }  else if (selectModels && !selectDistributions && .sapFamilySelection(options) == "all") {
       # best fitting model for all distributions is shown
       message <- gettext("Results are based on best fitting models within each distribution.")
-    } else if (selectModels && selectDistributions && !options[["compareModelsAcrossDistributions"]]) {
-      # best fitting model for the given distribution is shown
-      message <- gettext("Results are based on best fitting models within each distribution.")
-    } else if (selectModels && selectDistributions && options[["compareModelsAcrossDistributions"]]) {
+    } else if (selectModels && selectDistributions) {
       # best fitting model for the best distribution is shown
       message <- gettextf("Results are based on %1$s with %2$s distribution which was the best fitting model across all models and distributions.", attr(fit[[1]], "modelTitle"), attr(fit[[1]], "distribution"))
     }

@@ -196,7 +196,6 @@
   # (or joins them within subgroups if distributions / models are to be collapsed)
   if (.sapMergePlots(options, "survivalTime")) {
     fit <- .sapExtractFit(jaspResults, options, type = "byModel", output = "survivalTime")
-    fit <- .sapFilterSelectedModel(fit, options)
   } else {
     fit <- .sapExtractFit(jaspResults, options, type = "selected")
     fit <- .sapNestFit(.sapFlattenFit(fit, options))
@@ -231,7 +230,6 @@
   # (or joins them within subgroups if distributions / models are to be collapsed)
   if (.sapMergePlots(options, "lifeTime")) {
     fit <- .sapExtractFit(jaspResults, options, type = "byModel", output = "lifeTime")
-    fit <- .sapFilterSelectedModel(fit, options)
   } else {
     fit <- .sapExtractFit(jaspResults, options, type = "selected")
     fit <- .sapNestFit(.sapFlattenFit(fit, options))
@@ -269,7 +267,6 @@
   # (or joins them within subgroups if distributions / models are to be collapsed)
   if (.sapMergePlots(options, "lifeTime")) {
     fit <- .sapExtractFit(jaspResults, options, type = "byModel", output = "lifeTime")
-    fit <- .sapFilterSelectedModel(fit, options)
   } else {
     fit <- .sapExtractFit(jaspResults, options, type = "selected")
     fit <- .sapNestFit(.sapFlattenFit(fit, options))
@@ -305,7 +302,6 @@
   # (or joins them within subgroups if distributions / models are to be collapsed)
   if (.sapMergePlots(options, "lifeTime")) {
     fit <- .sapExtractFit(jaspResults, options, type = "byModel", output = "lifeTime")
-    fit <- .sapFilterSelectedModel(fit, options)
   } else {
     fit <- .sapExtractFit(jaspResults, options, type = "selected")
     fit <- .sapNestFit(.sapFlattenFit(fit, options))
@@ -341,7 +337,6 @@
   # (or joins them within subgroups if distributions / models are to be collapsed)
   if (.sapMergePlots(options, "lifeTime")) {
     fit <- .sapExtractFit(jaspResults, options, type = "byModel", output = "lifeTime")
-    fit <- .sapFilterSelectedModel(fit, options)
   } else {
     fit <- .sapExtractFit(jaspResults, options, type = "selected")
     fit <- .sapNestFit(.sapFlattenFit(fit, options))

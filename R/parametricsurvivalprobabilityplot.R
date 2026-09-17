@@ -25,7 +25,6 @@
   # overlay them in one canvas, following the prediction-plot merge pattern.
   if (.sapMergePlots(options, "probabilityPlot")) {
     fit <- .sapExtractFit(jaspResults, options, type = "byModel", output = "probabilityPlot")
-    fit <- .sapFilterSelectedModel(fit, options)
   } else {
     fit <- .sapExtractFit(jaspResults, options, type = "selected")
     fit <- .sapFlattenFit(fit, options)
