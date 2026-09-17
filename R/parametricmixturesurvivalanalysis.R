@@ -424,15 +424,88 @@
     return(wrap)
 
   # the direct maximization might change the ordering of the components
-  estimates <- .sapmComponentEstimates(wrap[["fit"]], family, components)
-  newOrder  <- .sapmComponentOrder(family, estimates[["base"]])
-  if (!identical(newOrder, seq_len(components))) {
-    reordered <- wrapFit(.sapmInits(mixture, estimates[["base"]][newOrder], estimates[["beta"]][newOrder], estimates[["probabilities"]][newOrder]))
-    if (!jaspBase::isTryError(reordered[["fit"]]))
-      wrap <- reordered
-  }
+  estimates     <- .sapmComponentEstimates(wrap[["fit"]], family, components)
+  newOrder      <- .sapmComponentOrder(family, estimates[["base"]])
+  wrap[["fit"]] <- .sapmRelabel(wrap[["fit"]], family, components, newOrder)
 
   return(wrap)
+}
+.sapmRelabel                    <- function(fit, family, components, order) {
+
+  # relabeling the components leaves the mixture density, and therefore the log-likelihood, unchanged:
+  # the component parameters and their covariate effects are permuted and only the stick-breaking
+  # weights are re-expressed for the new order (the remaining stick depends on the preceding components)
+  if (components == 1 || identical(order, seq_len(components)))
+    return(fit)
+
+  parameters  <- length(family[["pars"]])
+  effects     <- fit[["ncoveffs"]] / components
+  baseIndex   <- as.vector(vapply(order, function(k) (k - 1) * parameters + seq_len(parameters), numeric(parameters)))
+  weightIndex <- components * parameters + seq_len(components - 1)
+  effectIndex <- if (effects > 0) as.vector(vapply(order, function(k) max(weightIndex) + (k - 1) * effects + seq_len(effects), numeric(effects))) else numeric(0)
+  index       <- c(baseIndex, weightIndex, effectIndex)
+
+  estimates <- fit[["res.t"]][, "est"]
+  weights   <- .sapmReorderedWeights(estimates[weightIndex], order)
+
+  # the permutation of the components and the transformation of the stick-breaking weights
+  jacobian                                 <- matrix(0, length(index), length(index))
+  jacobian[cbind(seq_along(index), index)] <- 1
+  jacobian[weightIndex, weightIndex]       <- .sapmReorderedWeightsJacobian(estimates[weightIndex], order)
+
+  covariance           <- jacobian %*% fit[["cov"]] %*% t(jacobian)
+  dimnames(covariance) <- dimnames(fit[["cov"]])
+  standardErrors       <- sqrt(pmax(diag(covariance), 0))
+  quantile             <- stats::qnorm(1 - (1 - fit[["cl"]]) / 2)
+
+  # the parameter names are positional and stay in place, only the estimates move
+  transformed                       <- fit[["res.t"]][index, , drop = FALSE]
+  rownames(transformed)             <- rownames(fit[["res.t"]])
+  transformed[weightIndex, "est"]   <- weights
+  transformed[weightIndex, "se"]    <- standardErrors[weightIndex]
+  transformed[weightIndex, 2]       <- weights - quantile * standardErrors[weightIndex]
+  transformed[weightIndex, 3]       <- weights + quantile * standardErrors[weightIndex]
+
+  natural                       <- fit[["res"]][index, , drop = FALSE]
+  rownames(natural)             <- rownames(fit[["res"]])
+  natural[weightIndex, 1:3]     <- stats::plogis(transformed[weightIndex, 1:3])
+  natural[weightIndex, "se"]    <- if (all(is.na(fit[["res"]][weightIndex, "se"]))) NA_real_ else standardErrors[weightIndex] * stats::dlogis(weights)
+
+  fit[["res"]]          <- natural
+  fit[["res.t"]]        <- transformed
+  fit[["cov"]]          <- covariance
+  if (length(fit[["opt"]][["par"]]) == length(index))
+    fit[["opt"]][["par"]] <- stats::setNames(transformed[, "est"], names(fit[["opt"]][["par"]]))
+  if (length(fit[["coefficients"]]) == length(index))
+    fit[["coefficients"]] <- stats::setNames(transformed[, "est"], names(fit[["coefficients"]]))
+  if (!is.null(fit[["opt"]][["hessian"]])) {
+    inverse                   <- solve(jacobian)
+    fit[["opt"]][["hessian"]] <- t(inverse) %*% fit[["opt"]][["hessian"]] %*% inverse
+  }
+
+  return(fit)
+}
+.sapmReorderedWeights           <- function(estimates, order) {
+
+  # stick-breaking weights (on the logit scale) of the reordered components
+  probabilities <- as.vector(.sapmStickBreaking(matrix(stats::plogis(estimates), nrow = 1), 1))[order]
+  remaining     <- c(1, 1 - cumsum(probabilities)[-length(probabilities)])
+  weights       <- probabilities[-length(probabilities)] / remaining[-length(remaining)]
+
+  return(stats::qlogis(pmin(pmax(weights, 1e-10), 1 - 1e-10)))
+}
+.sapmReorderedWeightsJacobian   <- function(estimates, order) {
+
+  # central differences of the reordering map (a closed form expression of at most three weights)
+  step     <- 1e-5
+  jacobian <- matrix(0, length(estimates), length(estimates))
+  for (i in seq_along(estimates)) {
+    upper          <- replace(estimates, i, estimates[i] + step)
+    lower          <- replace(estimates, i, estimates[i] - step)
+    jacobian[, i]  <- (.sapmReorderedWeights(upper, order) - .sapmReorderedWeights(lower, order)) / (2 * step)
+  }
+
+  return(jacobian)
 }
 .sapmInits                      <- function(mixture, base, beta, probabilities) {
 
@@ -1258,11 +1331,37 @@
 
   # the messages of each model are reported in a single footnote, models of the same distribution with the same messages are reported together
   fitMessages <- vapply(mixtures, function(x) paste(.sapmFitMessages(x, options), collapse = " "), character(1))
+  fitMessages <- trimws(paste(fitMessages, .sapmLocalOptimumMessages(mixtures)))
   cells       <- vapply(seq_along(mixtures), function(i) paste(attr(mixtures[[i]], "distribution"), attr(mixtures[[i]], "modelTitle"), attr(mixtures[[i]], "subgroupLabel"), fitMessages[i], sep = "\n"), character(1))
   for (cell in unique(cells[fitMessages != ""])) {
     index      <- which(cells == cell)
     components <- vapply(mixtures[index], function(x) attr(x, "components"), numeric(1))
     messages[["warnings"]] <- c(messages[["warnings"]], paste0(.sapmCellLabel(mixtures[[index[1]]], options, components), ": ", fitMessages[index[1]]))
+  }
+
+  return(messages)
+}
+.sapmLocalOptimumMessages       <- function(mixtures) {
+
+  # a mixture with more components contains the mixture with fewer components, a lower log-likelihood
+  # therefore shows that the reported estimates are a local optimum of the likelihood
+  messages   <- rep("", length(mixtures))
+  cells      <- vapply(mixtures, function(x) paste(attr(x, "distribution"), attr(x, "modelTitle"), attr(x, "subgroupLabel"), sep = "\n"), character(1))
+  components <- vapply(mixtures, function(x) attr(x, "components"), numeric(1))
+  logLik     <- vapply(mixtures, function(x) x[["loglik"]], numeric(1))
+
+  for (cell in unique(cells)) {
+    index <- which(cells == cell)
+    index <- index[order(components[index])]
+    # every model with fewer components is nested, the comparison uses the best fitting one of them
+    for (i in seq_along(index)[-1]) {
+      best <- index[which.max(logLik[index[seq_len(i - 1)]])]
+      if (logLik[index[i]] < logLik[best] - 1e-6)
+        messages[index[i]] <- gettextf(
+          "The log-likelihood is lower than that of the nested model with %1$s; the reported estimates are a local optimum. Consider increasing the number of restarts.",
+          .sapComponentsLabel(components[best])
+        )
+    }
   }
 
   return(messages)
