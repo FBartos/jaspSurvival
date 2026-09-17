@@ -205,7 +205,8 @@
   outputDependencies <- c(.sapGetDependencies(options), "compareModelsAcrossDistributions", "interpretModel", "alwaysDisplayModelInformation",
                           "survivalTimePlot", "predictionsSurvivalTimeStepsType", "predictionsSurvivalTimeStepsNumber", "predictionsSurvivalTimeStepsFrom",
                           "predictionsSurvivalTimeStepsSize", "predictionsSurvivalTimeStepsTo", "predictionsSurvivalTimeCustom",
-                          "predictionsConfidenceInterval", "predictionsConfidenceIntervalLevel", "survivalTimeMergePlotsAcrossDistributions", "colorPalette", "plotLegend", "plotTheme"
+                          "predictionsConfidenceInterval", "predictionsConfidenceIntervalLevel", "survivalTimeMergePlotsAcrossDistributions", "colorPalette", "plotLegend", "plotTheme",
+                          if (options[["analysisType"]] == "mixture") "survivalTimeMergePlotsAcrossComponents"
   )
 
   .sapSectionWrapper(
@@ -241,6 +242,7 @@
                           "predictionsLifeTimeStepsType", "predictionsLifeTimeStepsNumber", "predictionsLifeTimeStepsFrom", "predictionsLifeTimeStepsSize",
                           "predictionsLifeTimeStepsTo", "predictionsLifeTimeRoundSteps", "predictionsLifeTimeCustom",
                           "lifeTimeMergePlotsAcrossDistributions", "colorPalette", "plotLegend", "plotTheme",
+                          if (options[["analysisType"]] == "mixture") "lifeTimeMergePlotsAcrossComponents",
                           "survivalProbabilityPlotKaplanMeier", "survivalProbabilityPlotCensoringEvents", "survivalProbabilityPlotTransformXAxis", "survivalProbabilityPlotTransformYAxis",
                           "survivalProbabilityAsFailureProbability"
   )
@@ -277,7 +279,8 @@
                           "hazardPlot", "lifeTimeMergeTablesAcrossMeasures", "predictionsConfidenceInterval", "predictionsConfidenceIntervalLevel",
                           "predictionsLifeTimeStepsType", "predictionsLifeTimeStepsNumber", "predictionsLifeTimeStepsFrom", "predictionsLifeTimeStepsSize",
                           "predictionsLifeTimeStepsTo", "predictionsLifeTimeRoundSteps", "predictionsLifeTimeCustom",
-                          "lifeTimeMergePlotsAcrossDistributions", "colorPalette", "plotLegend", "plotTheme"
+                          "lifeTimeMergePlotsAcrossDistributions", "colorPalette", "plotLegend", "plotTheme",
+                          if (options[["analysisType"]] == "mixture") "lifeTimeMergePlotsAcrossComponents"
   )
 
   .sapSectionWrapper(
@@ -312,7 +315,8 @@
                           "cumulativeHazardPlot", "lifeTimeMergeTablesAcrossMeasures", "predictionsConfidenceInterval", "predictionsConfidenceIntervalLevel",
                           "predictionsLifeTimeStepsType", "predictionsLifeTimeStepsNumber", "predictionsLifeTimeStepsFrom", "predictionsLifeTimeStepsSize",
                           "predictionsLifeTimeStepsTo", "predictionsLifeTimeRoundSteps", "predictionsLifeTimeCustom",
-                          "lifeTimeMergePlotsAcrossDistributions", "colorPalette", "plotLegend", "plotTheme"
+                          "lifeTimeMergePlotsAcrossDistributions", "colorPalette", "plotLegend", "plotTheme",
+                          if (options[["analysisType"]] == "mixture") "lifeTimeMergePlotsAcrossComponents"
   )
 
   .sapSectionWrapper(
@@ -347,7 +351,8 @@
                           "restrictedMeanSurvivalTimePlot", "lifeTimeMergeTablesAcrossMeasures", "predictionsConfidenceInterval", "predictionsConfidenceIntervalLevel",
                           "predictionsLifeTimeStepsType", "predictionsLifeTimeStepsNumber", "predictionsLifeTimeStepsFrom", "predictionsLifeTimeStepsSize",
                           "predictionsLifeTimeStepsTo", "predictionsLifeTimeRoundSteps", "predictionsLifeTimeCustom",
-                          "lifeTimeMergePlotsAcrossDistributions", "colorPalette", "plotLegend", "plotTheme"
+                          "lifeTimeMergePlotsAcrossDistributions", "colorPalette", "plotLegend", "plotTheme",
+                          if (options[["analysisType"]] == "mixture") "lifeTimeMergePlotsAcrossComponents"
   )
 
   .sapSectionWrapper(
@@ -431,9 +436,11 @@
   data$at              <- optionsSequence
   data$subgroup        <- NA
   data$distribution    <- NA
+  data$components      <- NA
   data$model           <- NA
   data$subgroup[1]     <- attr(fit, "subgroup")
   data$distribution[1] <- attr(fit, "distribution")
+  data$components[1]   <- attr(fit, "components")
   data$model[1]        <- attr(fit, "modelTitle")
 
   if (!is.null(attr(fit, "label")))
@@ -494,6 +501,7 @@
   tempTable <- createJaspTable()
   .sapAddColumnSubgroup(     tempTable, options, output = "coefficientsCovarianceMatrix")
   .sapAddColumnDistribution( tempTable, options, output = "coefficientsCovarianceMatrix")
+  .sapAddColumnComponents(   tempTable, options, output = "coefficientsCovarianceMatrix")
   .sapAddColumnModel(        tempTable, options, output = "coefficientsCovarianceMatrix")
   tempTable$addColumnInfo(name = "at", title = gettext("Time"), type = "number")
 
@@ -561,9 +569,11 @@
   data$at              <- timeSequence
   data$subgroup        <- NA
   data$distribution    <- NA
+  data$components      <- NA
   data$model           <- NA
   data$subgroup[1]     <- attr(fit, "subgroup")
   data$distribution[1] <- attr(fit, "distribution")
+  data$components[1]   <- attr(fit, "components")
   data$model[1]        <- attr(fit, "modelTitle")
 
   if (!is.null(attr(fit, "label")))
@@ -648,7 +658,7 @@
       }
 
       # add distribution information
-      data[[j]]$Distribution <- attr(fit[[i]], "distribution")
+      data[[j]]$Distribution <- .sapSeriesLabel(fit[[i]], options)
     }
 
     # bind across levels

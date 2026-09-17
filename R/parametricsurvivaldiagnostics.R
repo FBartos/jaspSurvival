@@ -150,6 +150,9 @@
 
   # extract the dataset and compute residuals
   predictorsFit <- model.matrix(fit)
+  # the predictors of mixture models are repeated for the location parameter of each component
+  if (!is.null(attr(fit, "mixture")))
+    predictorsFit <- predictorsFit[, fit[["mx"]][[fit[["dlist"]][["location"]]]], drop = FALSE]
   res           <- residuals(fit, type = switch(
     options[["residualPlotResidualType"]],
     "response" = "response",

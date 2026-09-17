@@ -23,10 +23,21 @@ ParametricSurvivalAnalysis <- function(jaspResults, dataset, options, state = NU
   return()
 }
 
+ParametricMixtureSurvivalAnalysis <- function(jaspResults, dataset, options, state = NULL) {
+
+  options[["analysisType"]] <- "mixture"
+  .sapRun(jaspResults, dataset, options)
+
+  return()
+}
+
 .sapRun <- function(jaspResults, dataset, options) {
 
-  if (.saSurvivalReady(options))
+  if (.saSurvivalReady(options)) {
     dataset <- .saCheckDataset(dataset, options, type = "parametric")
+    if (options[["analysisType"]] == "mixture")
+      .sapmCheckDataset(dataset, options)
+  }
 
   # Censoring summary table
   if (options[["censoringSummary"]])
@@ -84,6 +95,16 @@ ParametricSurvivalAnalysis <- function(jaspResults, dataset, options, state = NU
   if (isTRUE(options[["probabilityPlot"]]))
     .sapProbabilityPlot(jaspResults, options)
 
+  # Mixture
+  if (options[["analysisType"]] == "mixture") {
+    if (options[["mixtureComponentsTable"]])
+      .sapmComponentsTable(jaspResults, options)
+    if (options[["mixtureClassificationTable"]])
+      .sapmClassificationTable(jaspResults, options)
+    if (options[["mixtureComponentPlot"]])
+      .sapmComponentPlot(jaspResults, options)
+  }
+
   return()
 }
 
@@ -101,5 +122,9 @@ ParametricSurvivalAnalysis <- function(jaspResults, dataset, options, state = NU
   "coefficientsConfidenceIntervalLevel"
 )
 .sapGetDependencies <- function(options) {
+
+  if (options[["analysisType"]] == "mixture")
+    return(c(.sapDependencies, .sapmDependencies))
+
   return(.sapDependencies)
 }

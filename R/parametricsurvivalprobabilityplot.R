@@ -38,7 +38,8 @@
     "probabilityPlotConfidenceInterval", "probabilityPlotConfidenceIntervalLevel",
     "probabilityPlotGrid", "probabilityPlotPlottingPosition", "probabilityPlotRankAdjustment",
     "probabilityPlotTiesHandler", "probabilityPlotLegend", "probabilityPlotColorPalette",
-    "probabilityPlotTheme"
+    "probabilityPlotTheme",
+    if (options[["analysisType"]] == "mixture") "probabilityPlotMergePlotsAcrossComponents"
   )
 
   .sapSectionWrapper(
@@ -117,7 +118,7 @@
   if (length(fitList) == 0)
     return(FALSE)
 
-  distributionLabels <- vapply(fitList, .sapProbabilityPlotDistributionLabel, character(1))
+  distributionLabels <- vapply(fitList, .sapProbabilityPlotDistributionLabel, character(1), options = options)
   hasDistribution    <- length(unique(stats::na.omit(distributionLabels))) > 1
   hasLevel           <- any(vapply(fitList, .sapProbabilityPlotFitCanShowLevels, logical(1), options = options))
 
@@ -466,7 +467,7 @@
       data[[j]][["lCi"]]          <- 1 - data[[j]][["survivalUCI"]]
       data[[j]][["uCi"]]          <- 1 - data[[j]][["survivalLCI"]]
       data[[j]][["Level"]]        <- if (length(data) > 1) decodeColNames(names(data)[j]) else NA_character_
-      data[[j]][["Distribution"]] <- .sapProbabilityPlotDistributionLabel(fitList[[i]])
+      data[[j]][["Distribution"]] <- .sapProbabilityPlotDistributionLabel(fitList[[i]], options)
       data[[j]][["Group"]]        <- paste(data[[j]][["Distribution"]], data[[j]][["Level"]], sep = " | ")
 
       out[[length(out) + 1]] <- data[[j]][, c("time", "probability", "lCi", "uCi", "Level", "Distribution", "Group"), drop = FALSE]
@@ -490,9 +491,9 @@
   return(out)
 }
 
-.sapProbabilityPlotDistributionLabel <- function(fit) {
+.sapProbabilityPlotDistributionLabel <- function(fit, options) {
 
-  distribution <- attr(fit, "distribution")
+  distribution <- .sapSeriesLabel(fit, options)
   if (is.null(distribution) || length(distribution) == 0 || is.na(distribution[1]))
     distribution <- gettext("Fitted")
 

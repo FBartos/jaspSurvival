@@ -38,7 +38,9 @@
       "selectedParametricDistributionGeneralizedFOriginal",
       # the CIs are not a simple multiplier of the standard error
       # as such, they need to be changed during the fitting process
-      "coefficientsConfidenceIntervalLevel"
+      "coefficientsConfidenceIntervalLevel",
+      # the numbers of components are not included as the fits are updated only if the corresponding number of components changes
+      if (options[["analysisType"]] == "mixture") c("mixtureInitialization", "mixtureRestarts", "mixtureMaximumIterations", "setSeed", "seed")
     ))
     jaspResults[["fit"]] <- fitContainer
     out                  <- NULL
@@ -62,6 +64,13 @@
 
   distributions <- .sapGetDistributions(options)
   components    <- .sapComponents(options)
+
+  # mixture models can take a while to fit
+  if (options[["analysisType"]] == "mixture") {
+    nSubgroups <- (options[["subgroup"]] == "" || options[["includeFullDatasetInSubgroupAnalysis"]]) +
+      if (options[["subgroup"]] != "") length(unique(dataset[[options[["subgroup"]]]])) else 0
+    startProgressbar(nSubgroups * length(distributions) * length(components), label = gettext("Fitting mixture models"))
+  }
 
   # fit the full dataset
   if (options[["subgroup"]] == "" || options[["includeFullDatasetInSubgroupAnalysis"]]) {
@@ -115,6 +124,8 @@
     # previously fitted numbers of components are kept (and only the missing ones are fitted)
     for (k in components) {
       out[[distributions[i]]][[as.character(k)]] <- .sapFitDistribution(out[[distributions[i]]][[as.character(k)]], dataset, options, distributions[i], k)
+      if (options[["analysisType"]] == "mixture")
+        progressbarTick()
     }
 
     attr(out[[distributions[i]]], "distribution") <- distributions[i]
@@ -176,13 +187,17 @@
 }
 .sapFitModel            <- function(dataset, options, distribution, modelTerms, components) {
 
-  fit <- try(flexsurv::flexsurvreg(
-    formula = .sapGetFormula(options, modelTerms),
-    data    = dataset,
-    dist    = distribution,
-    weights = if (options[["weights"]] != "") dataset[[options[["weights"]]]],
-    cl      = options[["coefficientsConfidenceIntervalLevel"]]
-  ))
+  if (components > 1) {
+    fit <- .sapmFitModel(dataset, options, distribution, modelTerms, components)
+  } else {
+    fit <- try(flexsurv::flexsurvreg(
+      formula = .sapGetFormula(options, modelTerms),
+      data    = dataset,
+      dist    = distribution,
+      weights = if (options[["weights"]] != "") dataset[[options[["weights"]]]],
+      cl      = options[["coefficientsConfidenceIntervalLevel"]]
+    ))
+  }
 
   # store attributes
   attr(fit, "subgroup")       <- attr(dataset, "subgroup")
@@ -497,6 +512,14 @@
 }
 .sapComponentsLabel         <- function(components) {
   return(vapply(components, function(k) sprintf(ngettext(k, "%1$i component", "%1$i components"), k), character(1)))
+}
+.sapSeriesLabel             <- function(fit, options) {
+
+  # label of the fitted model in plots with multiple distributions (and numbers of components)
+  if (options[["analysisType"]] != "mixture")
+    return(attr(fit, "distribution"))
+
+  return(gettextf("%1$s, %2$i comp.", attr(fit, "distribution"), attr(fit, "components")))
 }
 .sapSelectionCriterion      <- function(selection) {
   return(switch(

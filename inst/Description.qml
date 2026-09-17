@@ -35,4 +35,11 @@ Description
 		func:			"ParametricSurvivalAnalysis"
 	}
 
+	Analysis
+	{
+		menu:			qsTr("Parametric Mixture")
+		title:			qsTr("Parametric Mixture Survival Analysis")
+		func:			"ParametricMixtureSurvivalAnalysis"
+	}
+
 }

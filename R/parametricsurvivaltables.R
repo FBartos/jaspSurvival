@@ -130,6 +130,7 @@
   summaryTable <- createJaspTable()
   .sapAddColumnSubgroup(     summaryTable, options, output = "modelSummary")
   .sapAddColumnDistribution( summaryTable, options, output = "modelSummary")
+  .sapAddColumnComponents(   summaryTable, options, output = "modelSummary")
   .sapAddColumnModel(        summaryTable, options, output = "modelSummary")
   summaryTable$addColumnInfo(name = "logLik",        title = gettext("Log Lik."),     type = "number")
   summaryTable$addColumnInfo(name = "df",            title = gettext("df"),           type = "integer")
@@ -172,6 +173,12 @@
   for (i in seq_along(errors))
     summaryTable$addFootnote(errors[[i]], symbol = gettext("Error: "))
 
+  if (options[["analysisType"]] == "mixture") {
+    mixtureMessages <- .sapmSummaryMessages(fit, options)
+    for (i in seq_along(mixtureMessages))
+      summaryTable$addFootnote(mixtureMessages[[i]])
+  }
+
   if (length(fit) > 0)
     .saAddMissingObservationsFootnote(summaryTable, attr(fit[[1]], "dataset", exact = TRUE))
 
@@ -186,6 +193,7 @@
   sequentialModelComparisonTable <- createJaspTable()
   .sapAddColumnSubgroup(     sequentialModelComparisonTable, options, output = "coefficients")
   .sapAddColumnDistribution( sequentialModelComparisonTable, options, output = "coefficients")
+  .sapAddColumnComponents(   sequentialModelComparisonTable, options, output = "coefficients")
   sequentialModelComparisonTable$addColumnInfo(name = "model0", title = "H\U2080",      type = "string")
   sequentialModelComparisonTable$addColumnInfo(name = "model1", title = "H\U2081",      type = "string")
   sequentialModelComparisonTable$addColumnInfo(name = "chi2",   title = "\U03C7\U00B2", type = "number")
@@ -218,6 +226,7 @@
   estimatesTable <- createJaspTable()
   .sapAddColumnSubgroup(     estimatesTable, options, output = "coefficients")
   .sapAddColumnDistribution( estimatesTable, options, output = "coefficients")
+  .sapAddColumnComponents(   estimatesTable, options, output = "coefficients")
   .sapAddColumnModel(        estimatesTable, options, output = "coefficients")
   estimatesTable$addColumnInfo(name = "coefficient",    title = "",                         type = "string")
   estimatesTable$addColumnInfo(name = "est",            title = gettext("Estimate"),        type = "number")
@@ -264,14 +273,24 @@
     # fix coefficient names
     if (any(thisRegression))
       data[["coefficient"]][thisRegression] <- sapply(data[["coefficient"]][thisRegression], .saTermNames, variables = c(options[["covariates"]], options[["factors"]]))
+
+    # add the mixture component of the regression coefficients
+    if (!is.null(data[["mixtureComponent"]])) {
+      thisMixtureRegression <- thisRegression & !is.na(data[["mixtureComponent"]])
+      data[["coefficient"]][thisMixtureRegression] <- gettextf("%1$s (component %2$i)", data[["coefficient"]][thisMixtureRegression], data[["mixtureComponent"]][thisMixtureRegression])
+    }
   }
 
   data[["isRegressionCoefficient"]] <- NULL
+  data[["mixtureComponent"]]        <- NULL
 
   # add footnotes
   messages <- .sapSelectedModelMessage(fit, options)
   for (i in seq_along(messages))
     estimatesTable$addFootnote(messages[[i]])
+
+  if (any(sapply(fit, function(x) !jaspBase::isTryError(x) && attr(x, "components") > 2)))
+    estimatesTable$addFootnote(gettext("The mixing probabilities of models with more than two components are parameterized by stick-breaking weights (the k-th weight is the probability of the k-th component given that the observation does not belong to any of the previous components). The mixing probabilities are summarized in the mixture components table."))
 
   estimatesTable$setData(data)
   estimatesTable$showSpecifiedColumnsOnly <- TRUE
@@ -284,6 +303,7 @@
   covarianceMatrixTableTable <- createJaspTable()
   .sapAddColumnSubgroup(     covarianceMatrixTableTable, options, output = "coefficientsCovarianceMatrix")
   .sapAddColumnDistribution( covarianceMatrixTableTable, options, output = "coefficientsCovarianceMatrix")
+  .sapAddColumnComponents(   covarianceMatrixTableTable, options, output = "coefficientsCovarianceMatrix")
   .sapAddColumnModel(        covarianceMatrixTableTable, options, output = "coefficientsCovarianceMatrix")
   covarianceMatrixTableTable$addColumnInfo(name = "coefficient",    title = "", type = "string")
 
@@ -317,7 +337,8 @@
   return(data.frame(
     subgroup     = attr(fit, "subgroup"),
     model        = attr(fit, "modelTitle"),
-    distribution = attr(fit, "distribution")
+    distribution = attr(fit, "distribution"),
+    components   = attr(fit, "components")
   ))
 }
 .sapRowSummaryTable                   <- function(fit) {
@@ -340,7 +361,8 @@
       subgroup     = attr(fit0, "subgroup"),
       model0       = attr(fit0, "modelTitle"),
       model1       = attr(fit1, "modelTitle"),
-      distribution = attr(fit0, "distribution")
+      distribution = attr(fit0, "distribution"),
+      components   = attr(fit0, "components")
     ))
 
   # flexsurv did not implement anova, so we compute the LRT manually
@@ -356,6 +378,7 @@
     model0       = attr(fit0, "modelTitle"),
     model1       = attr(fit1, "modelTitle"),
     distribution = attr(fit0, "distribution"),
+    components   = attr(fit0, "components"),
     chi2         = chi2,
     df           = df,
     pValue       = pValue
@@ -375,6 +398,10 @@
   # rename the CI columns
   colnames(coeffTable)[(ncol(coeffTable) - 2):(ncol(coeffTable)-1)] <- c("lower", "upper")
   coeffTable[["isRegressionCoefficient"]] <- seq_len(nrow(fit[["res"]])) %in% fit[["covpars"]]
+
+  # label the parameters of mixture components
+  if (!is.null(attr(fit, "mixture")))
+    coeffTable <- .sapmCoefficientsNames(coeffTable, fit)
 
   return(coeffTable)
 }
@@ -400,7 +427,7 @@
 .sapAddColumnSubgroup     <- function(tempTable, options, output) {
 
   if (output %in% c("modelSummary", "coefficients")) {
-    if (options[["subgroup"]] != "" && !.sapMultipleFamilies(options) && !.sapMultipleModels(options))
+    if (options[["subgroup"]] != "" && !.sapMultipleFamilies(options) && !.sapMultipleComponents(options) && !.sapMultipleModels(options))
       tempTable$addColumnInfo(name = "subgroup", title = gettext("Subgroup"), type = "string")
     return()
   }
@@ -432,6 +459,22 @@
     return()
   }
 }
+.sapAddColumnComponents   <- function(tempTable, options, output) {
+
+  # the number of components is displayed only in the mixture analysis
+  if (options[["analysisType"]] != "mixture")
+    return()
+
+  if(options[["alwaysDisplayModelInformation"]]) {
+    tempTable$addColumnInfo(name = "components", title = gettext("Components"), type = "integer")
+    return()
+  }
+
+  if (output %in% c("modelSummary", "coefficients") && .sapMultipleComponents(options)) {
+    tempTable$addColumnInfo(name = "components", title = gettext("Components"), type = "integer")
+    return()
+  }
+}
 .sapAddColumnDistribution <- function(tempTable, options, output) {
 
   if(options[["alwaysDisplayModelInformation"]]) {
@@ -459,6 +502,7 @@
   tempTable <- createJaspTable()
   .sapAddColumnSubgroup(     tempTable, options, output = "coefficientsCovarianceMatrix")
   .sapAddColumnDistribution( tempTable, options, output = "coefficientsCovarianceMatrix")
+  .sapAddColumnComponents(   tempTable, options, output = "coefficientsCovarianceMatrix")
   .sapAddColumnModel(        tempTable, options, output = "coefficientsCovarianceMatrix")
   tempTable$addColumnInfo(name = "at", title = atTitle, type = "number")
 
@@ -509,7 +553,13 @@
   errors <- NULL
 
   for (i in seq_along(fit)) {
-    if (jaspBase::isTryError(fit[[i]]))
+    if (jaspBase::isTryError(fit[[i]]) && options[["analysisType"]] == "mixture")
+      errors <- c(errors, gettextf(
+        "%1$s failed with the following message: %2$s",
+        .sapmCellLabel(fit[[i]], options),
+        .sapmCleanError(fit[[i]])
+      ))
+    else if (jaspBase::isTryError(fit[[i]]))
       errors <- c(errors, gettextf(
         "%1$s model %2$s%3$s failed with the following message: %4$s.",
         distribution = attr(fit[[i]], "distribution"),
@@ -523,7 +573,21 @@
 }
 .sapSelectionFootnote     <- function(data, options) {
 
-  if (.sapFamilySelection(options) %in% c("bestAic", "bestBic") && !options[["interpretModel"]] %in% c("bestAic", "bestBic") && (options[["compareModelsAcrossDistributions"]] || !.sapMultipleModels(options))) {
+  if (.sapMultipleComponents(options) && .sapComponentSelection(options) %in% c("bestAic", "bestBic") && !options[["interpretModel"]] %in% c("bestAic", "bestBic") && (options[["compareModelsAcrossComponents"]] || !.sapMultipleModels(options))) {
+
+    if (.sapFamilySelection(options) %in% c("bestAic", "bestBic") && (options[["compareModelsAcrossDistributions"]] || !.sapMultipleModels(options))) {
+      selectedDistribution <- data[["distribution"]][which.min(data[[.sapSelectionCriterion(.sapFamilySelection(options))]])]
+      distributionData     <- data[data[["distribution"]] %in% selectedDistribution, , drop = FALSE]
+      selected             <- which.min(distributionData[[.sapSelectionCriterion(.sapComponentSelection(options))]])
+      message              <- gettextf("All following output is based on the best fitting %1$s distribution with %2$s.", distributionData[["distribution"]][selected], .sapComponentsLabel(distributionData[["components"]][selected]))
+    } else if (!.sapMultipleFamilies(options)) {
+      selected <- which.min(data[[.sapSelectionCriterion(.sapComponentSelection(options))]])
+      message  <- gettextf("All following output is based on the best fitting number of components (%1$s).", .sapComponentsLabel(data[["components"]][selected]))
+    } else {
+      message  <- gettext("All following output is based on the best fitting number of components within each distribution.")
+    }
+
+  } else if (.sapFamilySelection(options) %in% c("bestAic", "bestBic") && !options[["interpretModel"]] %in% c("bestAic", "bestBic") && (options[["compareModelsAcrossDistributions"]] || !.sapMultipleModels(options))) {
 
     selected <- which.min(data[[.sapSelectionCriterion(.sapFamilySelection(options))]])
     message <- gettextf("All following output is based on the best fitting %1$s distribution.", data[["distribution"]][selected])
@@ -540,6 +604,10 @@
 .sapSelectedModelMessage  <- function(fit, options) {
 
   message <- NULL
+
+  # messages for the selection of the number of components
+  if (.sapMultipleComponents(options) && .sapComponentSelection(options) %in% c("bestAic", "bestBic"))
+    return(.sapSelectedComponentsMessage(fit, options))
 
   # check whether selection rules were applied
   multipleModels        <- .sapMultipleModels(options)
@@ -586,6 +654,44 @@
   }
 
   return(message)
+}
+.sapSelectedComponentsMessage <- function(fit, options) {
+
+  # the fits were selected hierarchically: distribution - number of components - model
+  selectDistributions <- .sapMultipleFamilies(options) && .sapFamilySelection(options) %in% c("bestAic", "bestBic")
+  allDistributions    <- .sapMultipleFamilies(options) && .sapFamilySelection(options) == "all"
+  multipleModels      <- .sapMultipleModels(options)
+  distribution        <- attr(fit[[1]], "distribution")
+  components          <- .sapComponentsLabel(attr(fit[[1]], "components"))
+  model               <- attr(fit[[1]], "modelTitle")
+
+  if (!multipleModels || options[["interpretModel"]] == "all") {
+
+    if (selectDistributions)
+      return(gettextf("Results are based on %1$s distribution with %2$s which was the best fitting combination of distribution and number of components.", distribution, components))
+    else if (allDistributions)
+      return(gettext("Results are based on the best fitting number of components within each distribution."))
+    else
+      return(gettextf("Results are based on %1$s which was the best fitting number of components.", components))
+
+  } else if (!options[["interpretModel"]] %in% c("bestAic", "bestBic")) {
+
+    if (selectDistributions)
+      return(gettextf("Results are based on %1$s with %2$s distribution and %3$s which was the best fitting combination of distribution and number of components across models.", model, distribution, components))
+    else if (allDistributions)
+      return(gettextf("Results are based on %1$s with the best fitting number of components within each distribution.", model))
+    else
+      return(gettextf("Results are based on %1$s with %2$s which was the best fitting number of components across models.", model, components))
+
+  } else {
+
+    if (selectDistributions)
+      return(gettextf("Results are based on %1$s with %2$s distribution and %3$s which was the best fitting model across all models, distributions, and numbers of components.", model, distribution, components))
+    else if (allDistributions)
+      return(gettext("Results are based on the best fitting number of components and model within each distribution."))
+    else
+      return(gettextf("Results are based on %1$s with %2$s which was the best fitting model across all models and numbers of components.", model, components))
+  }
 }
 
 # additional helper functions

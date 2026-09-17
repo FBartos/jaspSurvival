@@ -14,6 +14,9 @@
 
 ---
 # jaspSurvival 0.97.0
+## Added
+* Added the Parametric Mixture Survival Analysis: finite mixtures of up to four components from the same parametric family estimated with the EM algorithm followed by a direct maximization of the likelihood, with the selection of the distribution and the number of components by AIC/BIC, mixture components and classification tables, and a mixture components plot.
+
 ## Fixed
 * Parametric survival analysis: the best fitting distribution is selected within each subgroup regardless of the "Compare models across distributions" option, and the best fitting model is selected within each distribution when all distributions are displayed.
 * Parametric survival analysis: the sequential model comparison compares models only within the same distribution.
