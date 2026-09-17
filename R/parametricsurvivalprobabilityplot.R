@@ -23,8 +23,8 @@
   # Probability-paper diagnostics are distribution-level checks by default.
   # When requested, group the selected distributions by model/subgroup and
   # overlay them in one canvas, following the prediction-plot merge pattern.
-  if (isTRUE(options[["probabilityPlotMergePlotsAcrossDistributions"]]) && options[["distribution"]] %in% "all" && !options[["interpretModel"]] %in% c("bestAic", "bestBic")) {
-    fit <- .sapExtractFit(jaspResults, options, type = "byModel")
+  if (.sapMergePlots(options, "probabilityPlot")) {
+    fit <- .sapExtractFit(jaspResults, options, type = "byModel", output = "probabilityPlot")
     fit <- .sapFilterSelectedModel(fit, options)
   } else {
     fit <- .sapExtractFit(jaspResults, options, type = "selected")
@@ -32,7 +32,7 @@
   }
 
   outputDependencies <- c(
-    .sapDependencies, "interpretModel", "compareModelsAcrossDistributions", "alwaysDisplayModelInformation",
+    .sapGetDependencies(options), "interpretModel", "compareModelsAcrossDistributions", "alwaysDisplayModelInformation",
     "probabilityPlot", "probabilityPlotCanvas", "probabilityPlotEmpiricalPoints",
     "probabilityPlotPointCoordinates", "probabilityPlotFittedCurve",
     "probabilityPlotCensoringEvents", "probabilityPlotMergePlotsAcrossDistributions",

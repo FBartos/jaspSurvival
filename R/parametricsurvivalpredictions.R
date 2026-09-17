@@ -28,7 +28,7 @@
   fit <- .sapFlattenFit(fit, options)
 
   # output dependencies
-  outputDependencies <- c(.sapDependencies, "compareModelsAcrossDistributions", "interpretModel", "alwaysDisplayModelInformation",
+  outputDependencies <- c(.sapGetDependencies(options), "compareModelsAcrossDistributions", "interpretModel", "alwaysDisplayModelInformation",
                           "survivalTimeTable", "predictionsSurvivalTimeStepsType", "predictionsSurvivalTimeStepsNumber", "predictionsSurvivalTimeStepsFrom",
                           "predictionsSurvivalTimeStepsSize", "predictionsSurvivalTimeStepsTo", "predictionsSurvivalTimeCustom",
                           "predictionsConfidenceInterval", "predictionsConfidenceIntervalLevel"
@@ -55,7 +55,7 @@
   fit <- .sapExtractFit(jaspResults, options, type = "selected")
   fit <- .sapFlattenFit(fit, options)
 
-  outputDependencies <- c(.sapDependencies, "compareModelsAcrossDistributions", "interpretModel", "alwaysDisplayModelInformation",
+  outputDependencies <- c(.sapGetDependencies(options), "compareModelsAcrossDistributions", "interpretModel", "alwaysDisplayModelInformation",
                           "survivalProbabilityTable", "lifeTimeMergeTablesAcrossMeasures", "predictionsConfidenceInterval", "predictionsConfidenceIntervalLevel",
                           "predictionsLifeTimeStepsType", "predictionsLifeTimeStepsNumber", "predictionsLifeTimeStepsFrom", "predictionsLifeTimeStepsSize",
                           "predictionsLifeTimeStepsTo", "predictionsLifeTimeRoundSteps", "predictionsLifeTimeCustom", "survivalProbabilityAsFailureProbability"
@@ -82,7 +82,7 @@
   fit <- .sapExtractFit(jaspResults, options, type = "selected")
   fit <- .sapFlattenFit(fit, options)
 
-  outputDependencies <- c(.sapDependencies, "compareModelsAcrossDistributions", "interpretModel", "alwaysDisplayModelInformation",
+  outputDependencies <- c(.sapGetDependencies(options), "compareModelsAcrossDistributions", "interpretModel", "alwaysDisplayModelInformation",
                           "hazardTable", "lifeTimeMergeTablesAcrossMeasures", "predictionsConfidenceInterval", "predictionsConfidenceIntervalLevel",
                           "predictionsLifeTimeStepsType", "predictionsLifeTimeStepsNumber", "predictionsLifeTimeStepsFrom", "predictionsLifeTimeStepsSize",
                           "predictionsLifeTimeStepsTo", "predictionsLifeTimeRoundSteps", "predictionsLifeTimeCustom"
@@ -109,7 +109,7 @@
   fit <- .sapExtractFit(jaspResults, options, type = "selected")
   fit <- .sapFlattenFit(fit, options)
 
-  outputDependencies <- c(.sapDependencies, "compareModelsAcrossDistributions", "interpretModel", "alwaysDisplayModelInformation",
+  outputDependencies <- c(.sapGetDependencies(options), "compareModelsAcrossDistributions", "interpretModel", "alwaysDisplayModelInformation",
                           "cumulativeHazardTable", "lifeTimeMergeTablesAcrossMeasures", "predictionsConfidenceInterval", "predictionsConfidenceIntervalLevel",
                           "predictionsLifeTimeStepsType", "predictionsLifeTimeStepsNumber", "predictionsLifeTimeStepsFrom", "predictionsLifeTimeStepsSize",
                           "predictionsLifeTimeStepsTo", "predictionsLifeTimeRoundSteps", "predictionsLifeTimeCustom"
@@ -136,7 +136,7 @@
   fit <- .sapExtractFit(jaspResults, options, type = "selected")
   fit <- .sapFlattenFit(fit, options)
 
-  outputDependencies <- c(.sapDependencies, "compareModelsAcrossDistributions", "interpretModel", "alwaysDisplayModelInformation",
+  outputDependencies <- c(.sapGetDependencies(options), "compareModelsAcrossDistributions", "interpretModel", "alwaysDisplayModelInformation",
                           "restrictedMeanSurvivalTimeTable", "lifeTimeMergeTablesAcrossMeasures", "predictionsConfidenceInterval", "predictionsConfidenceIntervalLevel",
                           "predictionsLifeTimeStepsType", "predictionsLifeTimeStepsNumber", "predictionsLifeTimeStepsFrom", "predictionsLifeTimeStepsSize",
                           "predictionsLifeTimeStepsTo", "predictionsLifeTimeRoundSteps", "predictionsLifeTimeCustom"
@@ -166,7 +166,7 @@
   fit <- .sapExtractFit(jaspResults, options, type = "selected")
   fit <- .sapFlattenFit(fit, options)
 
-  outputDependencies <- c(.sapDependencies, "compareModelsAcrossDistributions", "interpretModel", "alwaysDisplayModelInformation", "predictionsConfidenceInterval", "predictionsConfidenceIntervalLevel",
+  outputDependencies <- c(.sapGetDependencies(options), "compareModelsAcrossDistributions", "interpretModel", "alwaysDisplayModelInformation", "predictionsConfidenceInterval", "predictionsConfidenceIntervalLevel",
                           "survivalProbabilityTable", "hazardTable", "cumulativeHazardTable", "restrictedMeanSurvivalTimeTable", "lifeTimeMergeTablesAcrossMeasures",
                           "predictionsLifeTimeStepsType", "predictionsLifeTimeStepsNumber", "predictionsLifeTimeStepsFrom", "predictionsLifeTimeStepsSize",
                           "predictionsLifeTimeStepsTo", "predictionsLifeTimeRoundSteps", "predictionsLifeTimeCustom"
@@ -194,8 +194,8 @@
 
   # the extract function automatically groups models by subgroup / distribution
   # (or joins them within subgroups if distributions / models are to be collapsed)
-  if (options[["survivalTimeMergePlotsAcrossDistributions"]] && options[["distribution"]] %in% "all" && !options[["interpretModel"]] %in% c("bestAic", "bestBic")) {
-    fit <- .sapExtractFit(jaspResults, options, type = "byModel")
+  if (.sapMergePlots(options, "survivalTime")) {
+    fit <- .sapExtractFit(jaspResults, options, type = "byModel", output = "survivalTime")
     fit <- .sapFilterSelectedModel(fit, options)
   } else {
     fit <- .sapExtractFit(jaspResults, options, type = "selected")
@@ -203,7 +203,7 @@
   }
 
   # output dependencies
-  outputDependencies <- c(.sapDependencies, "compareModelsAcrossDistributions", "interpretModel", "alwaysDisplayModelInformation",
+  outputDependencies <- c(.sapGetDependencies(options), "compareModelsAcrossDistributions", "interpretModel", "alwaysDisplayModelInformation",
                           "survivalTimePlot", "predictionsSurvivalTimeStepsType", "predictionsSurvivalTimeStepsNumber", "predictionsSurvivalTimeStepsFrom",
                           "predictionsSurvivalTimeStepsSize", "predictionsSurvivalTimeStepsTo", "predictionsSurvivalTimeCustom",
                           "predictionsConfidenceInterval", "predictionsConfidenceIntervalLevel", "survivalTimeMergePlotsAcrossDistributions", "colorPalette", "plotLegend", "plotTheme"
@@ -229,8 +229,8 @@
 
   # the extract function automatically groups models by subgroup / distribution
   # (or joins them within subgroups if distributions / models are to be collapsed)
-  if (options[["lifeTimeMergePlotsAcrossDistributions"]] && options[["distribution"]] %in% "all" && !options[["interpretModel"]] %in% c("bestAic", "bestBic")) {
-    fit <- .sapExtractFit(jaspResults, options, type = "byModel")
+  if (.sapMergePlots(options, "lifeTime")) {
+    fit <- .sapExtractFit(jaspResults, options, type = "byModel", output = "lifeTime")
     fit <- .sapFilterSelectedModel(fit, options)
   } else {
     fit <- .sapExtractFit(jaspResults, options, type = "selected")
@@ -238,7 +238,7 @@
   }
 
   # output dependencies
-  outputDependencies <- c(.sapDependencies, "compareModelsAcrossDistributions", "interpretModel", "alwaysDisplayModelInformation",
+  outputDependencies <- c(.sapGetDependencies(options), "compareModelsAcrossDistributions", "interpretModel", "alwaysDisplayModelInformation",
                           "survivalProbabilityPlot", "lifeTimeMergeTablesAcrossMeasures", "predictionsConfidenceInterval", "predictionsConfidenceIntervalLevel",
                           "predictionsLifeTimeStepsType", "predictionsLifeTimeStepsNumber", "predictionsLifeTimeStepsFrom", "predictionsLifeTimeStepsSize",
                           "predictionsLifeTimeStepsTo", "predictionsLifeTimeRoundSteps", "predictionsLifeTimeCustom",
@@ -267,8 +267,8 @@
 
   # the extract function automatically groups models by subgroup / distribution
   # (or joins them within subgroups if distributions / models are to be collapsed)
-  if (options[["lifeTimeMergePlotsAcrossDistributions"]] && options[["distribution"]] %in% "all" && !options[["interpretModel"]] %in% c("bestAic", "bestBic")) {
-    fit <- .sapExtractFit(jaspResults, options, type = "byModel")
+  if (.sapMergePlots(options, "lifeTime")) {
+    fit <- .sapExtractFit(jaspResults, options, type = "byModel", output = "lifeTime")
     fit <- .sapFilterSelectedModel(fit, options)
   } else {
     fit <- .sapExtractFit(jaspResults, options, type = "selected")
@@ -276,7 +276,7 @@
   }
 
   # output dependencies
-  outputDependencies <- c(.sapDependencies, "compareModelsAcrossDistributions", "interpretModel", "alwaysDisplayModelInformation",
+  outputDependencies <- c(.sapGetDependencies(options), "compareModelsAcrossDistributions", "interpretModel", "alwaysDisplayModelInformation",
                           "hazardPlot", "lifeTimeMergeTablesAcrossMeasures", "predictionsConfidenceInterval", "predictionsConfidenceIntervalLevel",
                           "predictionsLifeTimeStepsType", "predictionsLifeTimeStepsNumber", "predictionsLifeTimeStepsFrom", "predictionsLifeTimeStepsSize",
                           "predictionsLifeTimeStepsTo", "predictionsLifeTimeRoundSteps", "predictionsLifeTimeCustom",
@@ -303,8 +303,8 @@
 
   # the extract function automatically groups models by subgroup / distribution
   # (or joins them within subgroups if distributions / models are to be collapsed)
-  if (options[["lifeTimeMergePlotsAcrossDistributions"]] && options[["distribution"]] %in% "all" && !options[["interpretModel"]] %in% c("bestAic", "bestBic")) {
-    fit <- .sapExtractFit(jaspResults, options, type = "byModel")
+  if (.sapMergePlots(options, "lifeTime")) {
+    fit <- .sapExtractFit(jaspResults, options, type = "byModel", output = "lifeTime")
     fit <- .sapFilterSelectedModel(fit, options)
   } else {
     fit <- .sapExtractFit(jaspResults, options, type = "selected")
@@ -312,7 +312,7 @@
   }
 
   # output dependencies
-  outputDependencies <- c(.sapDependencies, "compareModelsAcrossDistributions", "interpretModel", "alwaysDisplayModelInformation",
+  outputDependencies <- c(.sapGetDependencies(options), "compareModelsAcrossDistributions", "interpretModel", "alwaysDisplayModelInformation",
                           "cumulativeHazardPlot", "lifeTimeMergeTablesAcrossMeasures", "predictionsConfidenceInterval", "predictionsConfidenceIntervalLevel",
                           "predictionsLifeTimeStepsType", "predictionsLifeTimeStepsNumber", "predictionsLifeTimeStepsFrom", "predictionsLifeTimeStepsSize",
                           "predictionsLifeTimeStepsTo", "predictionsLifeTimeRoundSteps", "predictionsLifeTimeCustom",
@@ -339,8 +339,8 @@
 
   # the extract function automatically groups models by subgroup / distribution
   # (or joins them within subgroups if distributions / models are to be collapsed)
-  if (options[["lifeTimeMergePlotsAcrossDistributions"]] && options[["distribution"]] %in% "all" && !options[["interpretModel"]] %in% c("bestAic", "bestBic")) {
-    fit <- .sapExtractFit(jaspResults, options, type = "byModel")
+  if (.sapMergePlots(options, "lifeTime")) {
+    fit <- .sapExtractFit(jaspResults, options, type = "byModel", output = "lifeTime")
     fit <- .sapFilterSelectedModel(fit, options)
   } else {
     fit <- .sapExtractFit(jaspResults, options, type = "selected")
@@ -348,7 +348,7 @@
   }
 
   # output dependencies
-  outputDependencies <- c(.sapDependencies, "compareModelsAcrossDistributions", "interpretModel", "alwaysDisplayModelInformation",
+  outputDependencies <- c(.sapGetDependencies(options), "compareModelsAcrossDistributions", "interpretModel", "alwaysDisplayModelInformation",
                           "restrictedMeanSurvivalTimePlot", "lifeTimeMergeTablesAcrossMeasures", "predictionsConfidenceInterval", "predictionsConfidenceIntervalLevel",
                           "predictionsLifeTimeStepsType", "predictionsLifeTimeStepsNumber", "predictionsLifeTimeStepsFrom", "predictionsLifeTimeStepsSize",
                           "predictionsLifeTimeStepsTo", "predictionsLifeTimeRoundSteps", "predictionsLifeTimeCustom",
@@ -679,41 +679,8 @@
   }
 
   # compute Kaplan-Meier if needed
-  if (type == "survival" && isTRUE(options[["survivalProbabilityPlotKaplanMeier"]]) && options[["censoringType"]] == "right") {
-
-    kmFit    <- try(survfit(
-      formula = .saGetFormula(options, type = "KM"),
-      type    = "kaplan-meier",
-      data    = tempData
-    ))
-    kmTable <- summary(kmFit) # , times = optionsSequence
-    kmTable <- with(kmTable, data.frame(
-      at       = time,
-      estimate = surv,
-      lCi      = lower,
-      uCi      = upper
-    ))
-
-    if (options[["survivalProbabilityAsFailureProbability"]]) {
-      kmTable$estimate <- 1 - kmTable$estimate
-      kmTable$lCi      <- 1 - kmTable$lCi
-      kmTable$uCi      <- 1 - kmTable$uCi
-    }
-
-    # transform into a step function
-    kmTable    <- kmTable[rep(1:nrow(kmTable), each=2), ]
-    kmTable$at[1:(nrow(kmTable)-1)] <- kmTable$at[2:nrow(kmTable)]
-
-    # extend the last step to match the last data point
-    if (max(kmTable$at) < max(tempData[[options[["timeToEvent"]]]])) {
-      kmTable <- rbind(kmTable, data.frame(
-        at       = max(tempData[[options[["timeToEvent"]]]]),
-        estimate = kmTable[["estimate"]][nrow(kmTable)],
-        lCi      = kmTable[["lCi"]][nrow(kmTable)],
-        uCi      = kmTable[["uCi"]][nrow(kmTable)]
-      ))
-    }
-  }
+  if (type == "survival" && isTRUE(options[["survivalProbabilityPlotKaplanMeier"]]) && options[["censoringType"]] == "right")
+    kmTable <- .sapKaplanMeierStepData(tempData, options, failureProbability = options[["survivalProbabilityAsFailureProbability"]])
 
   # create a plot
   plot <- ggplot2::ggplot(data = out)
@@ -802,6 +769,53 @@
   if (type != "survival" && options[["plotTheme"]] == "detailed") {
     options[["plotTheme"]] <- "jasp"
   }
+  plot <- .sapPredictionPlotAddTheme(plot, options)
+
+  tempPlot <- createJaspPlot(width = if (hasDistribution || hasLevel) 550 else 400, height = 320)
+  tempPlot$plotObject <- plot
+
+  return(tempPlot)
+}
+
+.sapKaplanMeierStepData          <- function(dataset, options, failureProbability) {
+
+  kmFit    <- try(survfit(
+    formula = .saGetFormula(options, type = "KM"),
+    type    = "kaplan-meier",
+    data    = dataset
+  ))
+  kmTable <- summary(kmFit) # , times = optionsSequence
+  kmTable <- with(kmTable, data.frame(
+    at       = time,
+    estimate = surv,
+    lCi      = lower,
+    uCi      = upper
+  ))
+
+  if (failureProbability) {
+    kmTable$estimate <- 1 - kmTable$estimate
+    kmTable$lCi      <- 1 - kmTable$lCi
+    kmTable$uCi      <- 1 - kmTable$uCi
+  }
+
+  # transform into a step function
+  kmTable    <- kmTable[rep(1:nrow(kmTable), each=2), ]
+  kmTable$at[1:(nrow(kmTable)-1)] <- kmTable$at[2:nrow(kmTable)]
+
+  # extend the last step to match the last data point
+  if (max(kmTable$at) < max(dataset[[options[["timeToEvent"]]]])) {
+    kmTable <- rbind(kmTable, data.frame(
+      at       = max(dataset[[options[["timeToEvent"]]]]),
+      estimate = kmTable[["estimate"]][nrow(kmTable)],
+      lCi      = kmTable[["lCi"]][nrow(kmTable)],
+      uCi      = kmTable[["uCi"]][nrow(kmTable)]
+    ))
+  }
+
+  return(kmTable)
+}
+.sapPredictionPlotAddTheme        <- function(plot, options) {
+
   if (options[["plotTheme"]] == "jasp") {
     plot <- plot + jaspGraphs::geom_rangeframe() +
       jaspGraphs::themeJaspRaw(legend.position = options[["plotLegend"]])
@@ -825,12 +839,8 @@
       )
   }
 
-  tempPlot <- createJaspPlot(width = if (hasDistribution || hasLevel) 550 else 400, height = 320)
-  tempPlot$plotObject <- plot
-
-  return(tempPlot)
+  return(plot)
 }
-
 .sapPredictionPlotAddSurvivalAxis <- function(plot, options, xBreaks, yBreaks, atTitle, estimateTitle) {
 
   ### x-axis

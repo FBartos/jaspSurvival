@@ -26,7 +26,7 @@
   fit <- .sapExtractFit(jaspResults, options, type = "all")
 
   # output dependencies
-  outputDependencies <- c(.sapDependencies, "compareModelsAcrossDistributions", "alwaysDisplayModelInformation",
+  outputDependencies <- c(.sapGetDependencies(options), "compareModelsAcrossDistributions", "alwaysDisplayModelInformation",
                           "modelSummary",
                           "modelSummaryRankModels", "modelSummaryRankModelsBy",
                           "modelSummaryAicWeighs", "modelSummaryBicWeighs")
@@ -53,7 +53,7 @@
   fit <- .sapExtractFit(jaspResults, options, type = "byDistribution")
 
   # output dependencies
-  outputDependencies <- c(.sapDependencies, "compareModelsAcrossDistributions", "alwaysDisplayModelInformation",
+  outputDependencies <- c(.sapGetDependencies(options), "compareModelsAcrossDistributions", "alwaysDisplayModelInformation",
                           "sequentialModelComparison")
 
   .sapSectionWrapper(
@@ -79,7 +79,7 @@
   fit <- .sapExtractFit(jaspResults, options, type = "selected")
 
   # output dependencies
-  outputDependencies <- c(.sapDependencies, "compareModelsAcrossDistributions", "interpretModel", "alwaysDisplayModelInformation",
+  outputDependencies <- c(.sapGetDependencies(options), "compareModelsAcrossDistributions", "interpretModel", "alwaysDisplayModelInformation",
                           "coefficients", "coefficientsConfidenceInterval", "coefficientsConfidenceIntervalLevel")
 
   .sapSectionWrapper(
@@ -107,7 +107,7 @@
   fit <- .sapFlattenFit(fit, options)
 
   # output dependencies
-  outputDependencies <- c(.sapDependencies, "compareModelsAcrossDistributions", "interpretModel", "alwaysDisplayModelInformation",
+  outputDependencies <- c(.sapGetDependencies(options), "compareModelsAcrossDistributions", "interpretModel", "alwaysDisplayModelInformation",
                           "coefficientsCovarianceMatrix")
 
   .sapSectionWrapper(
@@ -396,7 +396,7 @@
 .sapAddColumnSubgroup     <- function(tempTable, options, output) {
 
   if (output %in% c("modelSummary", "coefficients")) {
-    if (options[["subgroup"]] != "" && !.sapMultiplDistributions(options) && !.sapMultipleModels(options))
+    if (options[["subgroup"]] != "" && !.sapMultipleFamilies(options) && !.sapMultipleModels(options))
       tempTable$addColumnInfo(name = "subgroup", title = gettext("Subgroup"), type = "string")
     return()
   }
@@ -435,12 +435,12 @@
     return()
   }
 
-  if (output == "modelSummary" && .sapMultiplDistributions(options)) {
+  if (output == "modelSummary" && .sapMultipleFamilies(options)) {
     tempTable$addColumnInfo(name = "distribution", title = gettext("Distribution"), type = "string")
     return()
   }
 
-  if (output == "coefficients" && options[["distribution"]] == "all") {
+  if (output == "coefficients" && .sapFamilySelection(options) == "all") {
     tempTable$addColumnInfo(name = "distribution", title = gettext("Distribution"), type = "string")
     return()
   }
@@ -519,13 +519,9 @@
 }
 .sapSelectionFootnote     <- function(data, options) {
 
-  if (options[["distribution"]] %in% c("bestAic", "bestBic") && !options[["interpretModel"]] %in% c("bestAic", "bestBic") && options[["compareModelsAcrossDistributions"]]) {
+  if (.sapFamilySelection(options) %in% c("bestAic", "bestBic") && !options[["interpretModel"]] %in% c("bestAic", "bestBic") && options[["compareModelsAcrossDistributions"]]) {
 
-    selected <- which.min(data[[switch(
-      options[["distribution"]],
-      "bestAic" = "aic",
-      "bestBic" = "bic"
-    )]])
+    selected <- which.min(data[[.sapSelectionCriterion(.sapFamilySelection(options))]])
     message <- gettextf("All following output is based on the best fitting %1$s distribution.", data[["distribution"]][selected])
 
   } else {
@@ -543,10 +539,10 @@
 
   # check whether selection rules were applied
   multipleModels        <- .sapMultipleModels(options)
-  multipleDistributions <- .sapMultiplDistributions(options)
+  multipleDistributions <- .sapMultipleFamilies(options)
 
   selectModels        <- multipleModels        && options[["interpretModel"]] != "all"
-  selectDistributions <- multipleDistributions && options[["distribution"]]   %in% c("bestAic", "bestBic")
+  selectDistributions <- multipleDistributions && .sapFamilySelection(options) %in% c("bestAic", "bestBic")
 
   if (!multipleModels) {
     # only a single model is specified
@@ -572,10 +568,10 @@
     } else if (!selectModels && selectDistributions) {
       # all models for the best distribution are shown
       message <- gettextf("Results are based on %1$s distribution which was the best fitting distribution.", attr(fit[[1]], "distribution"))
-    } else if (selectModels && !selectDistributions && options[["distribution"]] != "all") {
+    } else if (selectModels && !selectDistributions && .sapFamilySelection(options) != "all") {
       # best fitting model for the selected distribution is shown
       message <- gettext("Results are based on best fitting models.")
-    }  else if (selectModels && !selectDistributions && options[["distribution"]] == "all") {
+    }  else if (selectModels && !selectDistributions && .sapFamilySelection(options) == "all") {
       # best fitting model for all distributions is shown
       message <- gettext("Results are based on best fitting models within each distribution.")
     } else if (selectModels && selectDistributions && !options[["compareModelsAcrossDistributions"]]) {

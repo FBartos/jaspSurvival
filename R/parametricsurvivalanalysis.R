@@ -17,6 +17,14 @@
 
 ParametricSurvivalAnalysis <- function(jaspResults, dataset, options, state = NULL) {
 
+  options[["analysisType"]] <- "parametric"
+  .sapRun(jaspResults, dataset, options)
+
+  return()
+}
+
+.sapRun <- function(jaspResults, dataset, options) {
+
   if (.saSurvivalReady(options))
     dataset <- .saCheckDataset(dataset, options, type = "parametric")
 
@@ -92,3 +100,6 @@ ParametricSurvivalAnalysis <- function(jaspResults, dataset, options, state = NU
   # as such, they need to be changed during the fitting process
   "coefficientsConfidenceIntervalLevel"
 )
+.sapGetDependencies <- function(options) {
+  return(.sapDependencies)
+}

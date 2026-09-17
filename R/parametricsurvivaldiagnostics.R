@@ -26,7 +26,7 @@
   fit <- .sapFlattenFit(fit, options)
 
   # output dependencies
-  outputDependencies <- c(.sapDependencies, "interpretModel", "residualPlotResidualVsTime", "residualPlotResidualType")
+  outputDependencies <- c(.sapGetDependencies(options), "interpretModel", "residualPlotResidualVsTime", "residualPlotResidualType")
 
   .sapSectionWrapper(
     jaspResults   = jaspResults,
@@ -51,7 +51,7 @@
   fit <- .sapFlattenFit(fit, options)
 
   # output dependencies
-  outputDependencies <- c(.sapDependencies, "interpretModel", "residualPlotResidualVsPredictors", "residualPlotResidualType")
+  outputDependencies <- c(.sapGetDependencies(options), "interpretModel", "residualPlotResidualVsPredictors", "residualPlotResidualType")
 
   .sapSectionWrapper(
     jaspResults   = jaspResults,
@@ -76,7 +76,7 @@
   fit <- .sapFlattenFit(fit, options)
 
   # output dependencies
-  outputDependencies <- c(.sapDependencies, "interpretModel", "residualPlotResidualVsPredicted", "residualPlotResidualType")
+  outputDependencies <- c(.sapGetDependencies(options), "interpretModel", "residualPlotResidualVsPredicted", "residualPlotResidualType")
 
   .sapSectionWrapper(
     jaspResults   = jaspResults,
@@ -101,7 +101,7 @@
   fit <- .sapFlattenFit(fit, options)
 
   # output dependencies
-  outputDependencies <- c(.sapDependencies, "interpretModel", "residualPlotResidualHistogram", "residualPlotResidualType")
+  outputDependencies <- c(.sapGetDependencies(options), "interpretModel", "residualPlotResidualHistogram", "residualPlotResidualType")
 
   .sapSectionWrapper(
     jaspResults   = jaspResults,
