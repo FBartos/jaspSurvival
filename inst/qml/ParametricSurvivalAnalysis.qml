@@ -107,7 +107,7 @@ Form
 			name:			 	"covariates"
 			title:			 	qsTr("Covariates")
 			allowedColumns:		["scale"]
-			info: qsTr("Add continuous variables as covariates to include them in the Cox regression model.")
+			info: qsTr("Add continuous variables as covariates to include them in the parametric survival model.")
 		}
 
 		AssignedVariablesList
@@ -116,7 +116,7 @@ Form
 			name:			 	"factors"
 			title:			 	qsTr("Factors")
 			allowedColumns:		["nominal"]
-			info: qsTr("Add categorical variables as factors to include them in the Cox regression model.")
+			info: qsTr("Add categorical variables as factors to include them in the parametric survival model.")
 		}
 
 
@@ -134,7 +134,7 @@ Form
 			name:			 	"subgroup"
 			id:					subgroup
 			title:			 	qsTr("Subgroup")
-			allowedColumns:		["nomial"]
+			allowedColumns:		["nominal"]
 			singleVariable:		true
 			info: qsTr("Select a variable for subgroup analysis, allowing for separate analyses within each subgroup.")
 		}

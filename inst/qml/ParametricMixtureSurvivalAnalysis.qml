@@ -109,7 +109,7 @@ Form
 			name:			 	"covariates"
 			title:			 	qsTr("Covariates")
 			allowedColumns:		["scale"]
-			info: qsTr("Add continuous variables as covariates to include them in the Cox regression model.")
+			info: qsTr("Add continuous variables as covariates to include them in the mixture model. The covariates affect the location parameter of each component with separate coefficients.")
 		}
 
 		AssignedVariablesList
@@ -118,7 +118,7 @@ Form
 			name:			 	"factors"
 			title:			 	qsTr("Factors")
 			allowedColumns:		["nominal"]
-			info: qsTr("Add categorical variables as factors to include them in the Cox regression model.")
+			info: qsTr("Add categorical variables as factors to include them in the mixture model. The factors affect the location parameter of each component with separate coefficients.")
 		}
 
 
@@ -136,7 +136,7 @@ Form
 			name:			 	"subgroup"
 			id:					subgroup
 			title:			 	qsTr("Subgroup")
-			allowedColumns:		["nomial"]
+			allowedColumns:		["nominal"]
 			singleVariable:		true
 			info: qsTr("Select a variable for subgroup analysis, allowing for separate analyses within each subgroup.")
 		}
@@ -219,7 +219,7 @@ Form
 			id:			mixtureComponents
 			label:		qsTr("Components")
 			startValue:	"2"
-			info: qsTr("Choose the number of mixture components. 'All' fits and displays results for one up to the maximum number of components set in the 'Advanced' section. 'Best AIC' and 'Best BIC' fit the same models and display the results only for the number of components with the lowest AIC/BIC.")
+			info: qsTr("Choose the number of mixture components. 'All' fits and displays results for one up to the maximum number of components set in the 'Advanced' section. 'Best AIC' and 'Best BIC' fit the same models and display the results only for the number of components with the lowest AIC/BIC. A fixed number of components is not limited by the maximum number of components.")
 			values:
 			[
 				{ label: "1",					value: "1"},
@@ -266,7 +266,7 @@ Form
 			label:				qsTr("Interpret model")
 			enabled:			modelTerms.count > 1
 			onCountChanged:		if (!(value === "bestAic" || value === "bestBic" || value === "all")) currentIndex = count - 1
-			info: qsTr("Select the model to interpret. Defaults to the last specified model. Alternatives are 'All' which produces results for all of the specified models or 'Best' which produces results for the best fitting model based on either AIC or BIC. If distribution and model selection is specified simultanously, the best model within the best performing distribution is going to be selected. If model selection is specified while all distributions are selected, the best model within each distribution is going to be selected.")
+			info: qsTr("Select the model to interpret. Defaults to the last specified model. Alternatives are 'All' which produces results for all of the specified models or 'Best' which produces results for the best fitting model based on either AIC or BIC. The selection proceeds within each subgroup from the distribution to the number of components to the model: 'Best' keeps the level of the best fitting model across all remaining distributions, numbers of components, and models, and 'All' selects separately within each of its levels (e.g., all distributions with the best number of components and the best model within each distribution).")
 			startValue:			"model1"
 			source:
 			[

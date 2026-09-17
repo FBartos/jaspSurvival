@@ -175,8 +175,10 @@
 
   if (options[["analysisType"]] == "mixture") {
     mixtureMessages <- .sapmSummaryMessages(fit, options)
-    for (i in seq_along(mixtureMessages))
-      summaryTable$addFootnote(mixtureMessages[[i]])
+    for (i in seq_along(mixtureMessages[["notes"]]))
+      summaryTable$addFootnote(mixtureMessages[["notes"]][[i]])
+    for (i in seq_along(mixtureMessages[["warnings"]]))
+      summaryTable$addFootnote(mixtureMessages[["warnings"]][[i]], symbol = gettext("Warning:"))
   }
 
   if (length(fit) > 0)
@@ -288,6 +290,12 @@
   messages <- .sapSelectedModelMessage(fit, options)
   for (i in seq_along(messages))
     estimatesTable$addFootnote(messages[[i]])
+
+  if (options[["analysisType"]] == "mixture") {
+    mixtureWarnings <- .sapmSummaryMessages(fit, options)[["warnings"]]
+    for (i in seq_along(mixtureWarnings))
+      estimatesTable$addFootnote(mixtureWarnings[[i]], symbol = gettext("Warning:"))
+  }
 
   if (any(sapply(fit, function(x) !jaspBase::isTryError(x) && attr(x, "components") > 2)))
     estimatesTable$addFootnote(gettext("The mixing probabilities of models with more than two components are parameterized by stick-breaking weights (the k-th weight is the probability of the k-th component given that the observation does not belong to any of the previous components). The mixing probabilities are summarized in the mixture components table."))
