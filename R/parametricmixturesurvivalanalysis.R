@@ -858,7 +858,7 @@
     fit           = fit,
     tableFunction = .sapmComponentsTableFun,
     name          = "mixtureComponentsTable",
-    title         = gettext("Mixture Components"),
+    title         = gettext("Component Mean and Median"),
     dependencies  = outputDependencies,
     position      = 2.2
   )
@@ -953,7 +953,15 @@
   if (!.saSurvivalReady(options) || jaspBase::isTryError(fit))
     return(componentsTable)
 
-  data <- .sapmComponentsTableData(fit, options[["coefficientsConfidenceIntervalLevel"]])
+  # the mixing probabilities and the component parameters are reported in the coefficients table, the last
+  # two quantities of each component are its mean and its median
+  mixture    <- attr(fit, "mixture")
+  quantities <- length(.sapmFamily(mixture[["family"]])[["pars"]]) + 3
+  data       <- .sapmComponentsTableData(fit, options[["coefficientsConfidenceIntervalLevel"]])
+  data       <- data[(seq_len(nrow(data)) - 1) %% quantities >= quantities - 2, , drop = FALSE]
+
+  data[["component"]]    <- NA_character_
+  data[["component"]][seq(1, nrow(data), by = 2)] <- gettextf("Component %1$i", seq_len(mixture[["components"]]))
 
   data$subgroup        <- NA
   data$distribution    <- NA
@@ -967,9 +975,10 @@
   # add footnotes
   if (!is.null(attr(fit, "label")) && attr(fit, "label") != "")
     componentsTable$addFootnote(attr(fit, "label"))
+  componentsTable$addFootnote(gettext("The mean and the median are those of the fitted component distribution; they are not restricted to the observed follow-up."))
   componentsTable$addFootnote(gettext("Standard errors and confidence intervals are based on the delta method."))
   if (length(fit[["covpars"]]) > 0)
-    componentsTable$addFootnote(gettext("The component parameters, means, and medians correspond to the reference level of factors and zero value of covariates."))
+    componentsTable$addFootnote(gettext("The component means and medians correspond to the reference level of factors and zero value of covariates."))
   for (message in .sapmFitMessages(fit, options))
     componentsTable$addFootnote(message, symbol = gettext("Warning:"))
 
@@ -1415,12 +1424,38 @@
     }
   }
 
-  # stick-breaking weights (the standard errors are not reported by flexsurv for the logit transformation)
-  for (k in seq_len(components - 1)) {
-    index <- names == paste0("v", k)
-    coeffTable[["coefficient"]][index] <- if (components == 2) gettextf("Mixing probability (component %1$i)", k) else gettextf("Stick-breaking weight %1$i", k)
-    coeffTable[["se"]][index]          <- fit[["res.t"]][index, "se"] * fit[["res"]][index, "est"] * (1 - fit[["res"]][index, "est"])
+  # the stick-breaking weights are reported as the mixing probabilities of all components: the weights are
+  # conditional on the preceding components and are easily mistaken for the probabilities themselves
+  weightIndex <- which(names %in% paste0("v", seq_len(components - 1)))
+  if (length(weightIndex) > 0) {
+
+    probabilities <- .sapmMixingProbabilities(fit, fit[["cl"]])
+    replacement   <- coeffTable[rep(weightIndex[1], components), , drop = FALSE]
+
+    replacement[["coefficient"]]             <- gettextf("Mixing probability (component %1$i)", seq_len(components))
+    replacement[["est"]]                     <- probabilities[["est"]]
+    replacement[["se"]]                      <- probabilities[["se"]]
+    replacement[["lower"]]                   <- probabilities[["lower"]]
+    replacement[["upper"]]                   <- probabilities[["upper"]]
+    replacement[["isRegressionCoefficient"]] <- FALSE
+    replacement[["mixtureComponent"]]        <- NA_integer_
+
+    coeffTable           <- rbind(
+      coeffTable[seq_len(min(weightIndex) - 1), , drop = FALSE],
+      replacement,
+      coeffTable[-seq_len(max(weightIndex)), , drop = FALSE]
+    )
+    rownames(coeffTable) <- NULL
   }
 
   return(coeffTable)
+}
+.sapmMixingProbabilities        <- function(fit, level) {
+
+  # the mixing probabilities, their standard errors, and their confidence intervals of all components
+  mixture    <- attr(fit, "mixture")
+  quantities <- length(.sapmFamily(mixture[["family"]])[["pars"]]) + 3
+  data       <- .sapmComponentsTableData(fit, level)
+
+  return(data[seq(1, nrow(data), by = quantities), c("est", "se", "lower", "upper")])
 }

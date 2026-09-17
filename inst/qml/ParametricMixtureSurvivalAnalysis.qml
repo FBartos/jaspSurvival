@@ -393,10 +393,10 @@ Form
 
 			CheckBox
 			{
-				label:		qsTr("Components")
+				label:		qsTr("Mean and median")
 				name:		"mixtureComponentsTable"
 				checked:	true
-				info: qsTr("Include a table with the mixing probability, the parameters, the mean, and the median of each mixture component. The component parameters correspond to the reference level of factors and zero value of covariates. Components are ordered by their median lifetime.")
+				info: qsTr("Include a table with the mean and the median lifetime of each mixture component. They correspond to the reference level of factors and zero value of covariates. The mixing probabilities and the parameters of the components are reported in the coefficients summary. Components are ordered by their median lifetime.")
 			}
 
 			CheckBox

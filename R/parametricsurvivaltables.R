@@ -297,8 +297,11 @@
       estimatesTable$addFootnote(mixtureWarnings[[i]], symbol = gettext("Warning:"))
   }
 
-  if (any(sapply(fit, function(x) !jaspBase::isTryError(x) && attr(x, "components") > 2)))
-    estimatesTable$addFootnote(gettext("The mixing probabilities of models with more than two components are parameterized by stick-breaking weights (the k-th weight is the probability of the k-th component given that the observation does not belong to any of the previous components). The mixing probabilities are summarized in the mixture components table."))
+  if (any(sapply(fit, function(x) !jaspBase::isTryError(x) && attr(x, "components") > 1))) {
+    estimatesTable$addFootnote(gettext("The standard errors and confidence intervals of the mixing probabilities are based on the delta method."))
+    if (anyRegression)
+      estimatesTable$addFootnote(gettext("The component parameters correspond to the reference level of factors and zero value of covariates."))
+  }
 
   estimatesTable$setData(data)
   estimatesTable$showSpecifiedColumnsOnly <- TRUE
