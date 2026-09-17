@@ -167,9 +167,20 @@
 
     # E-step: posterior probabilities of component membership
     if (!jaspBase::isTryError(newMSteps)) {
-      likelihood <- vapply(newMSteps, function(mStep) .sapmComponentLikelihood(family, survObject, mStep[["parameters"]]), numeric(nObs))
-      likelihood <- matrix(pmax(likelihood, .Machine$double.xmin), nrow = nObs)
-      joint      <- sweep(likelihood, 2, probabilities, "*")
+      newLikelihood <- vapply(newMSteps, function(mStep) .sapmComponentLikelihood(family, survObject, mStep[["parameters"]]), numeric(nObs))
+      newLikelihood <- matrix(pmax(newLikelihood, .Machine$double.xmin), nrow = nObs)
+
+      # generalized EM: a component keeps its previous estimates if its M-step did not converge to better ones
+      if (!is.null(mSteps)) for (k in seq_len(components)) {
+        newContribution <- sum(posterior[, k] * caseWeights * log(newLikelihood[, k]))
+        contribution    <- sum(posterior[, k] * caseWeights * log(likelihood[, k]))
+        if (is.finite(newContribution) && is.finite(contribution) && newContribution < contribution) {
+          newMSteps[[k]]     <- mSteps[[k]]
+          newLikelihood[, k] <- likelihood[, k]
+        }
+      }
+
+      joint      <- sweep(newLikelihood, 2, probabilities, "*")
       marginal   <- rowSums(joint)
       newLogLik  <- sum(caseWeights * log(marginal))
     }
@@ -189,6 +200,7 @@
     }
 
     mSteps        <- newMSteps
+    likelihood    <- newLikelihood
     posterior     <- joint / marginal
     probabilities <- colSums(posterior * caseWeights) / sum(caseWeights)
     iterations    <- iteration
@@ -1208,10 +1220,13 @@
       "Components %1$s have a negligible weight or diverging parameters; consider fewer components."
     ), paste(mixture[["collapsed"]], collapse = ", ")))
 
-  for (i in seq_len(nrow(mixture[["duplicated"]])))
+  coinciding <- .sapmCoincidingSets(mixture[["duplicated"]], mixture[["components"]])
+  if (length(coinciding) == 1 && length(coinciding[[1]]) == mixture[["components"]])
+    messages <- c(messages, gettext("All components coincide; the mixture is not identified and its standard errors are unreliable. Consider fewer components."))
+  else for (set in coinciding)
     messages <- c(messages, gettextf(
-      "Components %1$i and %2$i coincide; the mixture is not identified and its standard errors are unreliable. Consider fewer components.",
-      mixture[["duplicated"]][i, 1], mixture[["duplicated"]][i, 2]
+      "Components %1$s coincide; the mixture is not identified and its standard errors are unreliable. Consider fewer components.",
+      .sapmListLabel(set)
     ))
 
   # the coinciding components already explain an unreliable Hessian
@@ -1241,22 +1256,39 @@
   if (options[["censoringType"]] == "counting")
     messages[["notes"]] <- c(messages[["notes"]], gettext("Left-truncated data: the EM algorithm provides starting values only; the estimates are from the direct maximization of the likelihood."))
 
-  for (i in seq_along(mixtures)) {
-    fitMessages <- .sapmFitMessages(mixtures[[i]], options)
-    if (length(fitMessages) > 0)
-      messages[["warnings"]] <- c(messages[["warnings"]], paste0(.sapmCellLabel(mixtures[[i]], options), ": ", fitMessages))
+  # the messages of each model are reported in a single footnote, models of the same distribution with the same messages are reported together
+  fitMessages <- vapply(mixtures, function(x) paste(.sapmFitMessages(x, options), collapse = " "), character(1))
+  cells       <- vapply(seq_along(mixtures), function(i) paste(attr(mixtures[[i]], "distribution"), attr(mixtures[[i]], "modelTitle"), attr(mixtures[[i]], "subgroupLabel"), fitMessages[i], sep = "\n"), character(1))
+  for (cell in unique(cells[fitMessages != ""])) {
+    index      <- which(cells == cell)
+    components <- vapply(mixtures[index], function(x) attr(x, "components"), numeric(1))
+    messages[["warnings"]] <- c(messages[["warnings"]], paste0(.sapmCellLabel(mixtures[[index[1]]], options, components), ": ", fitMessages[index[1]]))
   }
 
   return(messages)
 }
-.sapmCellLabel                  <- function(fit, options) {
+.sapmCellLabel                  <- function(fit, options, components = attr(fit, "components")) {
   return(gettextf(
     "%1$s model %2$s with %3$s%4$s",
     attr(fit, "distribution"),
     attr(fit, "modelTitle"),
-    .sapComponentsLabel(attr(fit, "components")),
+    if (length(components) == 1) .sapComponentsLabel(components) else gettextf("%1$s components", .sapmListLabel(components)),
     if (options[["subgroup"]] != "") paste0(" (", attr(fit, "subgroupLabel"), ")") else ""
   ))
+}
+.sapmListLabel                  <- function(x) {
+  if (length(x) == 1)
+    return(as.character(x))
+  return(gettextf("%1$s and %2$s", paste(x[-length(x)], collapse = ", "), x[length(x)]))
+}
+.sapmCoincidingSets             <- function(duplicated, components) {
+
+  # coinciding pairs are merged into sets of mutually coinciding components
+  set <- seq_len(components)
+  for (i in seq_len(nrow(duplicated)))
+    set[set == set[duplicated[i, 2]]] <- set[duplicated[i, 1]]
+
+  return(Filter(function(x) length(x) > 1, unname(split(seq_len(components), set))))
 }
 .sapmCoefficientsNames          <- function(coeffTable, fit) {
 
