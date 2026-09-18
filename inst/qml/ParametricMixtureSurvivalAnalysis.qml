@@ -406,6 +406,14 @@ Form
 				checked:	false
 				info: qsTr("Include a table with the number and proportion of observations assigned to each component based on their highest posterior probability, the mean posterior probability of the assigned observations, and the relative entropy of the classification.")
 			}
+
+			CheckBox
+			{
+				label:		qsTr("Estimation diagnostics")
+				name:		"mixtureDiagnosticsTable"
+				checked:	false
+				info: qsTr("Include a table with the diagnostics of the estimation of each mixture model: the number of starting values, how many of them reached the reported solution, the log-likelihood of the reported and of the next best distinct solution, the number of degenerate candidate solutions, the effective sample size and the effective number of events of the smallest component, the Newton decrement, and whether the Hessian of the likelihood is positive definite.")
+			}
 		}
 	}
 

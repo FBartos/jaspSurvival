@@ -1285,6 +1285,33 @@
 
   return()
 }
+.sapmDiagnosticsTable           <- function(jaspResults, options) {
+
+  if (!is.null(jaspResults[["mixtureDiagnosticsTable"]]))
+    return()
+
+  fit <- .sapExtractFit(jaspResults, options, type = "selected")
+  fit <- .sapmFilterMixtures(.sapFlattenFit(fit, options), options)
+  if (.saSurvivalReady(options) && length(fit) == 0)
+    return()
+
+  outputDependencies <- c(.sapGetDependencies(options), "compareModelsAcrossDistributions", "interpretModel", "alwaysDisplayModelInformation",
+                          "mixtureDiagnosticsTable")
+
+  # every mixture model is a row of a single table
+  .sapSectionWrapper(
+    jaspResults   = jaspResults,
+    options       = options,
+    fit           = list(fit),
+    tableFunction = .sapmDiagnosticsTableFun,
+    name          = "mixtureDiagnosticsTable",
+    title         = gettext("Estimation Diagnostics"),
+    dependencies  = outputDependencies,
+    position      = 2.4
+  )
+
+  return()
+}
 .sapmComponentPlot              <- function(jaspResults, options) {
 
   if (!is.null(jaspResults[["mixtureComponentPlot"]]))
@@ -1508,6 +1535,60 @@
 
   return(classificationTable)
 }
+.sapmDiagnosticsTableFun        <- function(fit, options) {
+
+  # create the table
+  diagnosticsTable <- createJaspTable()
+  if (options[["subgroup"]] != "")
+    diagnosticsTable$addColumnInfo(name = "subgroup",     title = gettext("Subgroup"),     type = "string")
+  diagnosticsTable$addColumnInfo(name = "distribution",   title = gettext("Distribution"), type = "string")
+  diagnosticsTable$addColumnInfo(name = "model",          title = gettext("Model"),        type = "string")
+  diagnosticsTable$addColumnInfo(name = "components",     title = gettext("Components"),   type = "integer")
+  diagnosticsTable$addColumnInfo(name = "starts",         title = gettext("Starts"),       type = "integer")
+  diagnosticsTable$addColumnInfo(name = "replication",    title = gettext("Replications"), type = "integer")
+  diagnosticsTable$addColumnInfo(name = "logLik",         title = gettext("Log Lik."),     type = "number")
+  diagnosticsTable$addColumnInfo(name = "nextBest",       title = gettext("Next Best Log Lik."), type = "number")
+  diagnosticsTable$addColumnInfo(name = "degenerate",     title = gettext("Degenerate Candidates"), type = "integer")
+  diagnosticsTable$addColumnInfo(name = "minEss",         title = gettext("Min. Component n (ESS)"), type = "number")
+  diagnosticsTable$addColumnInfo(name = "minEvents",      title = gettext("Min. Component Events"),  type = "number")
+  diagnosticsTable$addColumnInfo(name = "newtonDecrement", title = gettext("Newton Decrement"), type = "number", format = "sf:4")
+  diagnosticsTable$addColumnInfo(name = "hessian",        title = gettext("Hessian Positive Definite"), type = "string")
+
+  if (!.saSurvivalReady(options) || is.null(fit))
+    return(diagnosticsTable)
+
+  data <- .saSafeRbind(lapply(fit, .sapmRowDiagnosticsTable))
+
+  # add footnotes
+  diagnosticsTable$addFootnote(gettext("Starts is the number of starting values that produced a solution and Replications the number of them that reached the reported solution (within 0.01 log-likelihood units)."))
+  diagnosticsTable$addFootnote(gettext("A candidate solution is degenerate when a component collapses on a few observations (fewer than 3 effective observations, a vanishing interquartile range, or a diverging parameter); such candidates are not selected."))
+  diagnosticsTable$addFootnote(gettext("The Newton decrement measures the remaining distance to a stationary point of the likelihood; it is reported only when the Hessian is positive definite."))
+
+  diagnosticsTable$setData(data)
+  diagnosticsTable$showSpecifiedColumnsOnly <- TRUE
+
+  return(diagnosticsTable)
+}
+.sapmRowDiagnosticsTable        <- function(fit) {
+
+  if (jaspBase::isTryError(fit))
+    return(.sapRowModelInformation(fit))
+
+  mixture <- attr(fit, "mixture")
+
+  return(data.frame(
+    .sapRowModelInformation(fit),
+    starts          = mixture[["starts"]],
+    replication     = mixture[["replication"]],
+    logLik          = fit[["loglik"]],
+    nextBest        = mixture[["nextBest"]],
+    degenerate      = mixture[["degenerate"]],
+    minEss          = mixture[["minEss"]],
+    minEvents       = mixture[["minEvents"]],
+    newtonDecrement = mixture[["newtonDecrement"]],
+    hessian         = if (mixture[["hessianPositiveDefinite"]]) gettext("yes") else gettext("no")
+  ))
+}
 .sapmComponentPlotFun           <- function(fit, options) {
 
   fit <- fit[[1]]
@@ -1676,6 +1757,19 @@
 
   if (is.null(mixture))
     return(messages)
+
+  # the reported solution is a local optimum whenever no other start reached it
+  # (with only degenerate candidates the replication is zero and the degeneracy is reported instead)
+  if (!mixture[["allDegenerate"]] && mixture[["replication"]] <= 1 && mixture[["starts"]] >= 2)
+    messages <- c(messages, gettextf(
+      "The reported solution was reached by only %1$i of %2$i starts; the estimates might be a local optimum. Consider more random starts.",
+      mixture[["replication"]], mixture[["starts"]]
+    ))
+
+  if (mixture[["allDegenerate"]])
+    messages <- c(messages, gettext("All candidate solutions were degenerate; the reported solution has a component with a negligible weight, too few effective observations, or diverging parameters. Consider fewer components."))
+  else if (is.finite(mixture[["minEvents"]]) && mixture[["minEvents"]] < 5)
+    messages <- c(messages, gettextf("The smallest component is supported by %1$.1f effective events; such a component is weakly identified. Consider fewer components.", mixture[["minEvents"]]))
 
   if (length(mixture[["collapsed"]]) > 0)
     messages <- c(messages, sprintf(ngettext(

@@ -101,6 +101,8 @@ ParametricMixtureSurvivalAnalysis <- function(jaspResults, dataset, options, sta
       .sapmComponentsTable(jaspResults, options)
     if (options[["mixtureClassificationTable"]])
       .sapmClassificationTable(jaspResults, options)
+    if (options[["mixtureDiagnosticsTable"]])
+      .sapmDiagnosticsTable(jaspResults, options)
     if (options[["mixtureComponentPlot"]])
       .sapmComponentPlot(jaspResults, options)
   }
