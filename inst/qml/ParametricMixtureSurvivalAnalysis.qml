@@ -22,7 +22,7 @@ import JASP
 
 Form
 {
-	info: qsTr("This analysis performs a parametric mixture survival analysis. The survival times are modeled as a finite mixture of components from the same parametric family, estimated with the EM algorithm followed by a direct maximization of the likelihood.")
+	info: qsTr("This analysis performs a parametric mixture survival analysis. The survival times are modeled as a finite mixture of components from the same parametric family. The likelihood is maximized directly from several starting values (each refined by a few EM iterations) and the solution with the highest likelihood is reported.")
 
 	property bool	categoricalPredictionLevelsPossible:		factors.count > 0 && modelTerms.countVariables > 0
 	property bool	multipleComponentsSelected:				mixtureComponents.value === "all" || mixtureComponents.value === "bestAic" || mixtureComponents.value === "bestBic"
@@ -1144,37 +1144,63 @@ Form
 				info: qsTr("Set the maximum number of components fitted when 'All', 'Best AIC', or 'Best BIC' is selected as the number of components.")
 			}
 
-			DropDown
+			Group
 			{
-				name:		"mixtureInitialization"
-				label:		qsTr("Initialization")
-				startValue:	"kmeans"
-				info: qsTr("Select how the EM algorithm is initialized: k-means clustering of the log survival times, groups based on the quantiles of the survival times, or a random partition of the observations.")
-				values:
-				[
-					{ label: qsTr("K-means"),		value: "kmeans"},
-					{ label: qsTr("Quantiles"),		value: "quantiles"},
-					{ label: qsTr("Random"),		value: "random"}
-				]
+				title:		qsTr("Starting Values")
+				info: qsTr("Select the starting values of the mixture estimation. The likelihood is maximized directly from every selected starting value and the solution with the highest likelihood is reported. More starting values make it more likely that the reported solution is the global maximum, at a proportionally higher computational cost.")
+
+				CheckBox
+				{
+					name:		"mixtureStartKmeans"
+					label:		qsTr("K-means")
+					checked:	true
+					info: qsTr("Start from a k-means clustering of the log survival times. The likelihood is maximized directly from this starting value.")
+				}
+
+				CheckBox
+				{
+					name:		"mixtureStartQuantiles"
+					label:		qsTr("Quantiles")
+					checked:	true
+					info: qsTr("Start from partitions of the survival times by their quantiles: a partition into groups of equal size and partitions that isolate the tails (the lowest and the highest 15% for two components, 15/70/15% for three components, and 10/40/40/10% for four components). The likelihood is maximized directly from each of these starting values.")
+				}
+
+				CheckBox
+				{
+					name:		"mixtureStartSplit"
+					label:		qsTr("Split of the previous solution")
+					checked:	true
+					info: qsTr("Start from the solution with one component fewer, splitting each of its components into a lower and an upper half. The likelihood is maximized directly from each of these starting values. The solution with one component fewer is estimated for this purpose when it is not part of the analysis.")
+				}
+
+				CheckBox
+				{
+					name:				"mixtureStartRandom"
+					label:				qsTr("Random")
+					checked:			true
+					childrenOnSameRow:	true
+					info: qsTr("Start from random centres drawn from the observed event times, assigning each observation to the nearest centre. The likelihood is maximized directly from each of these starting values. Random starting values are the main protection against reporting a local optimum.")
+
+					IntegerField
+					{
+						name:			"mixtureStartRandomCount"
+						label:			""
+						defaultValue:	10
+						min:			1
+						max:			50
+						info: qsTr("Set the number of random starting values.")
+					}
+				}
 			}
 
 			IntegerField
 			{
-				name:			"mixtureRestarts"
-				label:			qsTr("Restarts")
-				defaultValue:	3
-				min:			0
-				max:			50
-				info: qsTr("Set the number of additional runs of the EM algorithm. The first restart uses the quantile-based initialization (or the k-means initialization if quantiles are selected) and the remaining restarts use random partitions. The solution with the highest likelihood is retained.")
-			}
-
-			IntegerField
-			{
-				name:			"mixtureMaximumIterations"
-				label:			qsTr("Maximum iterations")
-				defaultValue:	500
-				min:			50
-				info: qsTr("Set the maximum number of iterations of each run of the EM algorithm.")
+				name:			"mixtureEmIterations"
+				label:			qsTr("EM iterations")
+				defaultValue:	10
+				min:			1
+				max:			1000
+				info: qsTr("Set the number of EM iterations that refine each starting value before the likelihood is maximized directly. The state after the first and after the last EM iteration are both used as starting values of the direct maximization.")
 			}
 
 			SetSeed {}

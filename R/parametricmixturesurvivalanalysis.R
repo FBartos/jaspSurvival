@@ -18,13 +18,17 @@
 # the parametric mixture survival analysis shares the fitting, selection, and output of the parametric survival analysis
 # (see .sapRun), this file contains the mixture estimator and the mixture specific output
 .sapmDependencies <- c(
-  "mixtureComponents", "mixtureMaximumComponents", "mixtureInitialization", "mixtureRestarts", "mixtureMaximumIterations",
-  "setSeed", "seed", "compareModelsAcrossComponents"
+  "mixtureComponents", "mixtureMaximumComponents",
+  "mixtureStartKmeans", "mixtureStartQuantiles", "mixtureStartSplit", "mixtureStartRandom", "mixtureStartRandomCount",
+  "mixtureEmIterations", "setSeed", "seed", "compareModelsAcrossComponents"
 )
 
 .sapmCheckDataset               <- function(dataset, options) {
 
-  # the initialization of the EM algorithm clusters log event times
+  if (!options[["mixtureStartKmeans"]] && !options[["mixtureStartQuantiles"]] && !options[["mixtureStartSplit"]] && !options[["mixtureStartRandom"]])
+    .quitAnalysis(gettext("At least one starting value method must be selected."))
+
+  # the starting values cluster log event times
   if (options[["censoringType"]] == "interval") {
     exact <- !is.na(dataset[[options[["intervalStart"]]]]) & !is.na(dataset[[options[["intervalEnd"]]]]) & dataset[[options[["intervalStart"]]]] == dataset[[options[["intervalEnd"]]]]
     time  <- dataset[[options[["intervalStart"]]]][exact]
@@ -40,18 +44,19 @@
 }
 
 # mixture estimator
-# the mixture is estimated with an EM algorithm (weighted M-steps for each component) and the converged
-# solution is wrapped as a custom flexsurvreg distribution so that all flexsurvreg methods remain available
-.sapmFitModel                   <- function(dataset, options, distribution, modelTerms, components) {
+# the mixture likelihood is maximized directly from every starting value (each refined by a few EM iterations),
+# the best non-degenerate solution is wrapped as a custom flexsurvreg distribution so that all flexsurvreg
+# methods remain available
+.sapmFitModel                   <- function(dataset, options, distribution, modelTerms, components, previous = NULL) {
 
-  # seeding each model makes the fits independent of the order in which they are fitted
-  jaspBase::.setSeedJASP(options)
-
-  fit <- try(.sapmFitMixture(dataset, options, distribution, modelTerms, components))
+  fit <- try(.sapmFitMixture(dataset, options, distribution, modelTerms, components, previous))
 
   return(fit)
 }
-.sapmFitMixture                 <- function(dataset, options, distribution, modelTerms, components) {
+.sapmFitMixture                 <- function(dataset, options, distribution, modelTerms, components, previous = NULL) {
+
+  # seeding each number of components makes the starting values independent of the order in which the models are fitted
+  jaspBase::.setSeedJASP(options)
 
   family      <- .sapmFamily(distribution)
   formula     <- .sapGetFormula(options, modelTerms)
@@ -60,7 +65,7 @@
   truncated   <- options[["censoringType"]] == "counting"
 
   # the truncated mixture likelihood does not separate into weighted component fits, the EM algorithm therefore
-  # maximizes the untruncated likelihood of left-truncated data and provides only the starting values of the direct maximization
+  # maximizes the untruncated likelihood of left-truncated data and only refines the starting values
   emOptions <- options
   if (truncated) {
     emOptions[["censoringType"]] <- "right"
@@ -72,33 +77,76 @@
   termLabels  <- attr(stats::terms(formula), "term.labels")
   emFormula   <- stats::reformulate(if (length(termLabels) > 0) termLabels else "1", response = .sapGetFormula(emOptions, modelTerms)[[2]])
   covariates  <- stats::model.matrix(emFormula, stats::model.frame(emFormula, dataset))[, -1, drop = FALSE]
+  mixture     <- .sapmMixtureDistribution(family, components)
 
-  # EM from the selected start and from additional starts
-  initializations <- c(options[["mixtureInitialization"]], .sapmRestartInitializations(options))
-  emFits          <- lapply(initializations, function(initialization) try(.sapmEm(
-    emFormula         = emFormula,
-    dataset           = dataset,
-    survObject        = emSurvObject,
-    covariates        = covariates,
-    family            = family,
-    components        = components,
-    caseWeights       = caseWeights,
-    initialization    = initialization,
-    maximumIterations = options[["mixtureMaximumIterations"]]
-  ), silent = TRUE))
-  emValid <- !vapply(emFits, jaspBase::isTryError, logical(1))
-  if (!any(emValid))
-    stop(gettextf("The EM algorithm failed: %1$s", .sapmCleanError(emFits[[1]])))
-  emFits  <- emFits[emValid]
+  # the solution with one component fewer supplies the split starts
+  previousSolution <- NULL
+  if (options[["mixtureStartSplit"]])
+    previousSolution <- .sapmPreviousSolution(dataset, options, distribution, modelTerms, components, previous, family, covariates, survObject)
 
-  # runs that stopped with a degenerated component are used only if no other run is available
-  regular <- vapply(emFits, function(x) x[["stopReason"]] != "degenerate", logical(1))
-  if (any(regular))
-    emFits <- emFits[regular]
-  em      <- emFits[[which.max(vapply(emFits, function(x) x[["logLik"]], numeric(1)))]]
+  starts <- .sapmStarts(options, family, survObject, emSurvObject, covariates, components, previousSolution)
+  if (length(starts) == 0)
+    stop(gettext("No starting values could be constructed for the mixture model."))
+
+  # every starting value is refined by a few EM iterations and the likelihood is then maximized directly
+  # from the state after the first and after the last EM iteration
+  candidates <- list()
+  emError    <- NULL
+  for (start in starts) {
+
+    states <- try(.sapmEm(
+      emFormula   = emFormula,
+      dataset     = dataset,
+      survObject  = emSurvObject,
+      covariates  = covariates,
+      family      = family,
+      components  = components,
+      caseWeights = caseWeights,
+      posterior   = start[["posterior"]],
+      iterations  = options[["mixtureEmIterations"]]
+    ), silent = TRUE)
+
+    if (jaspBase::isTryError(states)) {
+      if (is.null(emError))
+        emError <- .sapmCleanError(states)
+      next
+    }
+
+    for (state in states) {
+
+      order  <- .sapmComponentOrder(family, state[["base"]])
+      theta  <- .sapmPack(mixture, family, state[["base"]][order], state[["beta"]][order], state[["probabilities"]][order])
+      polish <- try(stats::optim(
+        theta, .sapmNegLogLik, method = "BFGS", control = list(maxit = 1000, reltol = 1e-10),
+        family = family, components = components, survObject = survObject, covariates = covariates, caseWeights = caseWeights
+      ), silent = TRUE)
+
+      # a non-finite likelihood is returned as a large constant, such a run did not maximize anything
+      if (jaspBase::isTryError(polish) || !is.finite(polish[["value"]]) || polish[["value"]] >= 1e10)
+        next
+
+      candidates[[length(candidates) + 1]] <- c(
+        list(
+          start     = start[["name"]],
+          iteration = state[["iteration"]],
+          logLik    = -polish[["value"]],
+          converged = polish[["convergence"]] == 0,
+          theta     = polish[["par"]]
+        ),
+        .sapmCandidateDiagnostics(polish[["par"]], family, components, survObject, covariates, caseWeights, polish[["convergence"]])
+      )
+    }
+  }
+
+  if (length(candidates) == 0)
+    stop(gettextf("The mixture model could not be estimated from any starting value: %1$s", if (is.null(emError)) gettext("the direct maximization failed.") else emError))
+
+  selection <- .sapmSelectCandidate(candidates)
+  best      <- candidates[[selection[["selected"]]]]
+  parts     <- .sapmUnpack(best[["theta"]], family, components, ncol(covariates))
 
   # wrap the solution with components ordered by their baseline median lifetime
-  wrap <- .sapmWrap(formula, dataset, options, family, components, em, caseWeights)
+  wrap <- .sapmWrap(formula, dataset, options, family, components, parts[["base"]], parts[["beta"]], parts[["probabilities"]], caseWeights)
   if (jaspBase::isTryError(wrap[["fit"]]))
     stop(gettextf("The mixture model could not be finalized: %1$s", .sapmCleanError(wrap[["fit"]])))
 
@@ -109,6 +157,9 @@
   # the constructed call contains the data and the distribution functions
   fit[["call"]] <- NULL
   estimates     <- .sapmComponentEstimates(fit, family, components)
+  posterior     <- .sapmPosterior(fit, family, components, survObject)
+  sizes         <- .sapmEffectiveSizes(posterior, caseWeights, .sapmEventIndicator(survObject))
+  curvature     <- .sapmCurvature(fit, family, components, survObject, covariates, caseWeights)
 
   # a component also collapses if the covariate effects on its (log-time scale) location diverge within the observed covariate range
   divergingEffects <- vapply(seq_len(components), function(k) {
@@ -116,22 +167,62 @@
   }, logical(1))
 
   attr(fit, "mixture") <- list(
-    family         = family[["family"]],
-    components     = components,
-    truncated      = truncated,
-    emIterations   = em[["iterations"]],
-    emStopReason   = em[["stopReason"]],
-    emLogLik       = em[["logLik"]],
-    # the EM log-likelihood of left-truncated data is not comparable to the final log-likelihood
-    emGap          = !truncated && abs(fit[["loglik"]] - em[["logLik"]]) > 1e-3,
-    restarts       = length(initializations) - 1,
-    hessianWarning = wrap[["hessianWarning"]] || any(!is.finite(fit[["cov"]])),
-    collapsed      = which(estimates[["probabilities"]] < 1e-3 | estimates[["collapsed"]] | divergingEffects),
-    duplicated     = .sapmDuplicatedComponents(fit, family, components, survObject),
-    posterior      = .sapmPosterior(fit, family, components, survObject)
+    family          = family[["family"]],
+    components      = components,
+    truncated       = truncated,
+    candidates      = selection[["candidates"]],
+    starts          = selection[["starts"]],
+    replication     = selection[["replication"]],
+    nextBest        = selection[["nextBest"]],
+    degenerate      = selection[["degenerate"]],
+    allDegenerate   = selection[["allDegenerate"]],
+    # the diagnostics of the reported fit (the direct maximization moves the selected candidate only marginally)
+    minEss          = min(sizes[["ess"]]),
+    minEvents       = min(sizes[["events"]]),
+    newtonDecrement = curvature[["newtonDecrement"]],
+    hessianPositiveDefinite = curvature[["positiveDefinite"]],
+    hessianWarning  = wrap[["hessianWarning"]] || any(!is.finite(fit[["cov"]])),
+    collapsed       = which(estimates[["probabilities"]] < 1e-3 | estimates[["collapsed"]] | divergingEffects),
+    duplicated      = .sapmDuplicatedComponents(fit, family, components, survObject),
+    posterior       = posterior
   )
 
   return(fit)
+}
+.sapmPreviousSolution           <- function(dataset, options, distribution, modelTerms, components, previous, family, covariates, survObject) {
+
+  # the solution with one component fewer of the same cell: the fit of the analysis when it is available,
+  # otherwise the chain (K-1, ..., 1) is fitted here and discarded afterwards
+  if (is.null(previous) || jaspBase::isTryError(previous)) {
+    previous <- if (components == 2)
+      try(flexsurv::flexsurvreg(
+        formula = .sapGetFormula(options, modelTerms),
+        data    = dataset,
+        dist    = distribution,
+        weights = if (options[["weights"]] != "") dataset[[options[["weights"]]]],
+        cl      = options[["coefficientsConfidenceIntervalLevel"]]
+      ), silent = TRUE)
+    else
+      try(.sapmFitMixture(dataset, options, distribution, modelTerms, components - 1), silent = TRUE)
+  }
+
+  if (jaspBase::isTryError(previous))
+    return(NULL)
+
+  # the single component fit is not wrapped as a mixture and its parameters have to be assembled
+  if (components == 2) {
+    base <- stats::setNames(previous[["res"]][family[["pars"]], "est"], family[["pars"]])
+    beta <- if (length(previous[["covpars"]]) > 0) previous[["res"]][previous[["covpars"]], "est"] else numeric(0)
+    return(list(
+      parameters = list(.sapmParameters(family, base, beta, covariates)),
+      posterior  = matrix(1, nrow(survObject), 1)
+    ))
+  }
+
+  return(list(
+    parameters = .sapmObservationParameters(previous, family, components - 1),
+    posterior  = .sapmPosterior(previous, family, components - 1, survObject)
+  ))
 }
 .sapmStarts                     <- function(options, family, survObject, emSurvObject, covariates, components, previous) {
 
@@ -278,27 +369,207 @@
 
   return(posterior / rowSums(posterior))
 }
-.sapmRestartInitializations     <- function(options) {
+.sapmNegLogLik                  <- function(theta, family, components, survObject, covariates, caseWeights) {
 
-  if (options[["mixtureRestarts"]] == 0)
-    return(character(0))
+  # the negative observed data log-likelihood of the mixture, evaluated on the transformed parameter
+  # vector in the order of .sapmInits (component parameters, stick-breaking weights, location effects);
+  # the optimizer also evaluates it at parameter values that overflow the distribution functions
+  value <- try(suppressWarnings({
 
-  # the first restart uses a deterministic alternative start, the remaining restarts use random partitions
-  firstRestart <- if (options[["mixtureInitialization"]] == "quantiles") "kmeans" else "quantiles"
+    parts      <- .sapmUnpack(theta, family, components, ncol(covariates))
+    parameters <- .sapmComponentParameters(family, parts, covariates)
+    likelihood <- .sapmLikelihoodMatrix(family, survObject, parameters)
+    out        <- sum(caseWeights * log(as.vector(likelihood %*% parts[["probabilities"]])))
 
-  return(c(firstRestart, rep("random", options[["mixtureRestarts"]] - 1)))
+    # left-truncated observations contribute conditionally on having survived until the entry time
+    if (attr(survObject, "type") == "counting") {
+      start    <- survObject[, "start"]
+      survival <- matrix(vapply(parameters, function(x) {
+        survival <- do.call(family[["p"]], c(list(start), x, list(lower.tail = FALSE)))
+        survival[start <= 0] <- 1
+        survival
+      }, numeric(nrow(survObject))), nrow = nrow(survObject))
+      out <- out - sum(caseWeights * log(as.vector(survival %*% parts[["probabilities"]])))
+    }
+
+    -out
+  }), silent = TRUE)
+
+  if (jaspBase::isTryError(value) || !is.finite(value))
+    return(1e10)
+
+  return(value)
 }
-.sapmEm                         <- function(emFormula, dataset, survObject, covariates, family, components, caseWeights, initialization, maximumIterations) {
+.sapmThetaIndex                 <- function(family, components, effects = 0) {
+
+  # the flexsurvreg order of the parameter vector: the parameters of the components, the stick-breaking
+  # weights, and the location effects of every component (see .sapmInits)
+  parameters <- length(family[["pars"]])
+  effectFrom <- parameters * components + components - 1
+
+  return(list(
+    base    = lapply(seq_len(components), function(k) (k - 1) * parameters + seq_len(parameters)),
+    weights = if (components > 1) parameters * components + seq_len(components - 1) else integer(0),
+    beta    = if (effects > 0) lapply(seq_len(components), function(k) effectFrom + (k - 1) * effects + seq_len(effects)) else NULL
+  ))
+}
+.sapmPack                       <- function(mixture, family, base, beta, probabilities) {
+
+  # the starting values of flexsurvreg on the transformed scale
+  inits <- unname(.sapmInits(mixture, base, beta, probabilities))
+  index <- .sapmThetaIndex(family, length(base))
+
+  for (component in index[["base"]])
+    inits[component] <- vapply(seq_along(component), function(i) family[["transforms"]][[i]](inits[component[i]]), numeric(1))
+  if (length(index[["weights"]]) > 0)
+    inits[index[["weights"]]] <- stats::qlogis(inits[index[["weights"]]])
+
+  return(inits)
+}
+.sapmUnpack                     <- function(theta, family, components, effects) {
+
+  # the natural component parameters, location effects and mixing probabilities of a transformed vector
+  index <- .sapmThetaIndex(family, components, effects)
+
+  return(list(
+    base          = lapply(index[["base"]], function(component) stats::setNames(vapply(seq_along(component), function(i) {
+      family[["inv.transforms"]][[i]](theta[component[i]])
+    }, numeric(1)), family[["pars"]])),
+    beta          = if (is.null(index[["beta"]])) rep(list(numeric(0)), components) else lapply(index[["beta"]], function(component) theta[component]),
+    probabilities = as.vector(.sapmStickBreaking(if (components > 1) matrix(stats::plogis(theta[index[["weights"]]]), nrow = 1), 1))
+  ))
+}
+.sapmComponentParameters        <- function(family, parts, covariates) {
+
+  # natural parameters of every component for every observation (covariates act on the location)
+  return(lapply(seq_along(parts[["base"]]), function(k) .sapmParameters(family, parts[["base"]][[k]], parts[["beta"]][[k]], covariates)))
+}
+.sapmLikelihoodMatrix           <- function(family, survObject, parameters) {
+  return(matrix(
+    vapply(parameters, function(x) .sapmComponentLikelihood(family, survObject, x), numeric(nrow(survObject))),
+    nrow = nrow(survObject)
+  ))
+}
+.sapmPosteriorProbabilities     <- function(family, survObject, parameters, probabilities) {
+
+  # posterior component membership of every observation
+  likelihood <- pmax(.sapmLikelihoodMatrix(family, survObject, parameters), .Machine$double.xmin)
+  joint      <- sweep(likelihood, 2, probabilities, "*")
+
+  return(joint / rowSums(joint))
+}
+.sapmEffectiveSizes             <- function(posterior, caseWeights, events) {
+
+  # effective sample size and effective number of events of each component
+  return(list(
+    ess    = colSums(posterior * caseWeights),
+    events = colSums(posterior[events, , drop = FALSE] * caseWeights[events])
+  ))
+}
+.sapmCandidateDiagnostics       <- function(theta, family, components, survObject, covariates, caseWeights, convergence) {
+
+  parts      <- .sapmUnpack(theta, family, components, ncol(covariates))
+  parameters <- .sapmComponentParameters(family, parts, covariates)
+  posterior  <- suppressWarnings(.sapmPosteriorProbabilities(family, survObject, parameters, parts[["probabilities"]]))
+  sizes      <- .sapmEffectiveSizes(posterior, caseWeights, .sapmEventIndicator(survObject))
+  ess        <- sizes[["ess"]]
+  eventEss   <- sizes[["events"]]
+
+  # a spike component concentrates on a handful of tied observations: its baseline interquartile range vanishes
+  logIqr <- vapply(parts[["base"]], function(base) {
+    quantiles <- try(suppressWarnings(do.call(family[["q"]], c(list(c(0.25, 0.75)), as.list(base)))), silent = TRUE)
+    if (jaspBase::isTryError(quantiles) || any(!is.finite(quantiles)) || any(quantiles <= 0))
+      return(NA_real_)
+    return(log(quantiles[2]) - log(quantiles[1]))
+  }, numeric(1))
+  logIqrRatio <- if (all(is.finite(logIqr)) && max(logIqr) > 0) min(logIqr) / max(logIqr) else NA_real_
+
+  # a collapsed component diverges on the log scale of its parameters
+  isLog       <- vapply(family[["transforms"]], function(f) identical(f, log), logical(1))
+  logScale    <- if (any(isLog)) max(abs(theta[unlist(lapply(.sapmThetaIndex(family, components)[["base"]], function(component) component[isLog]))])) else 0
+
+  degenerate <- any(!is.finite(theta)) || any(!is.finite(ess)) || min(ess) < 3 ||
+    is.na(logIqrRatio) || logIqrRatio < 0.01 || !is.finite(logScale) || logScale > 15 || convergence != 0
+
+  return(list(
+    degenerate = degenerate,
+    minEss     = min(ess),
+    minEvents  = min(eventEss)
+  ))
+}
+.sapmSelectCandidate            <- function(candidates) {
+
+  logLik     <- vapply(candidates, function(x) x[["logLik"]], numeric(1))
+  degenerate <- vapply(candidates, function(x) x[["degenerate"]], logical(1))
+  start      <- vapply(candidates, function(x) x[["start"]], character(1))
+
+  # the best non-degenerate candidate is reported; if every candidate is degenerate the best of them is kept
+  # (the collapsed / coinciding warnings then explain the solution)
+  selected <- if (any(!degenerate)) which(!degenerate)[which.max(logLik[!degenerate])] else which.max(logLik)
+
+  # solutions within 0.01 log-likelihood units are the same solution: the number of starts that reached it
+  # is the replication of the reported solution
+  reached     <- !degenerate & logLik > logLik[selected] - 0.01
+  distinct    <- !degenerate & logLik <= logLik[selected] - 0.01
+
+  return(list(
+    selected      = selected,
+    starts        = length(unique(start)),
+    replication   = length(unique(start[reached])),
+    nextBest      = if (any(distinct)) max(logLik[distinct]) else NA_real_,
+    degenerate    = sum(degenerate),
+    allDegenerate = all(degenerate),
+    candidates    = data.frame(
+      start      = start,
+      iteration  = vapply(candidates, function(x) x[["iteration"]], numeric(1)),
+      logLik     = logLik,
+      degenerate = degenerate,
+      converged  = vapply(candidates, function(x) x[["converged"]], logical(1)),
+      selected   = seq_along(candidates) == selected
+    )
+  ))
+}
+.sapmCurvature                  <- function(fit, family, components, survObject, covariates, caseWeights) {
+
+  # the Newton decrement 0.5 g' H^-1 g measures how far the reported estimates are from a stationary point
+  # in the metric of the likelihood; it is defined only at a local maximum (a positive definite Hessian)
+  out     <- list(newtonDecrement = NA_real_, positiveDefinite = FALSE)
+  theta   <- fit[["opt"]][["par"]]
+  hessian <- fit[["opt"]][["hessian"]]
+
+  if (is.null(theta) || is.null(hessian) || length(theta) != nrow(hessian) || any(!is.finite(hessian)))
+    return(out)
+
+  hessian    <- (hessian + t(hessian)) / 2
+  eigenvalue <- try(eigen(hessian, symmetric = TRUE, only.values = TRUE)[["values"]], silent = TRUE)
+  if (jaspBase::isTryError(eigenvalue) || any(!is.finite(eigenvalue)) || min(eigenvalue) <= 0)
+    return(out)
+  out[["positiveDefinite"]] <- TRUE
+
+  gradient <- vapply(seq_along(theta), function(i) {
+    step  <- 1e-5 * max(1, abs(theta[i]))
+    upper <- .sapmNegLogLik(replace(theta, i, theta[i] + step), family, components, survObject, covariates, caseWeights)
+    lower <- .sapmNegLogLik(replace(theta, i, theta[i] - step), family, components, survObject, covariates, caseWeights)
+    return((upper - lower) / (2 * step))
+  }, numeric(1))
+  if (any(!is.finite(gradient)))
+    return(out)
+
+  decrement <- try(0.5 * sum(gradient * solve(hessian, gradient)), silent = TRUE)
+  if (!jaspBase::isTryError(decrement) && is.finite(decrement))
+    out[["newtonDecrement"]] <- decrement
+
+  return(out)
+}
+.sapmEm                         <- function(emFormula, dataset, survObject, covariates, family, components, caseWeights, posterior, iterations) {
 
   nObs          <- nrow(survObject)
-  posterior     <- .sapmInitialPosterior(survObject, components, initialization)
   probabilities <- colSums(posterior * caseWeights) / sum(caseWeights)
   mSteps        <- NULL
   logLik        <- -Inf
-  iterations    <- 0
-  stopReason    <- "maximumIterations"
+  states        <- list()
 
-  for (iteration in seq_len(maximumIterations)) {
+  for (iteration in seq_len(iterations)) {
 
     # M-step: weighted fit of each component
     newMSteps <- try(lapply(seq_len(components), function(k) .sapmMStep(
@@ -312,8 +583,8 @@
 
     # E-step: posterior probabilities of component membership
     if (!jaspBase::isTryError(newMSteps)) {
-      newLikelihood <- vapply(newMSteps, function(mStep) .sapmComponentLikelihood(family, survObject, mStep[["parameters"]]), numeric(nObs))
-      newLikelihood <- matrix(pmax(newLikelihood, .Machine$double.xmin), nrow = nObs)
+      newLikelihood <- .sapmLikelihoodMatrix(family, survObject, lapply(newMSteps, function(mStep) mStep[["parameters"]]))
+      newLikelihood <- pmax(newLikelihood, .Machine$double.xmin)
 
       # generalized EM: a component keeps its previous estimates if its M-step did not converge to better ones
       if (!is.null(mSteps)) for (k in seq_len(components)) {
@@ -334,37 +605,43 @@
     if (jaspBase::isTryError(newMSteps) || !is.finite(newLogLik)) {
       if (is.null(mSteps))
         stop(if (jaspBase::isTryError(newMSteps)) .sapmCleanError(newMSteps) else gettext("The log-likelihood is not finite."))
-      stopReason <- "degenerate"
       break
     }
 
     # numerical safeguard: the EM iterations cannot decrease the likelihood
-    if (iteration > 1 && newLogLik < logLik - 1e-6 * abs(logLik)) {
-      stopReason <- "decrease"
+    if (iteration > 1 && newLogLik < logLik - 1e-6 * abs(logLik))
       break
-    }
 
     mSteps        <- newMSteps
     likelihood    <- newLikelihood
     posterior     <- joint / marginal
     probabilities <- colSums(posterior * caseWeights) / sum(caseWeights)
-    iterations    <- iteration
+
+    # the state after the first iteration and the last valid state are both maximized directly
+    state <- list(
+      iteration     = iteration,
+      base          = lapply(mSteps, function(mStep) mStep[["base"]]),
+      beta          = lapply(mSteps, function(mStep) mStep[["beta"]]),
+      probabilities = probabilities
+    )
+    if (iteration == 1)
+      states[["first"]] <- state
+    states[["last"]] <- state
 
     if (is.finite(logLik) && abs(newLogLik - logLik) < 1e-8 * abs(newLogLik)) {
-      logLik     <- newLogLik
-      stopReason <- "converged"
+      logLik <- newLogLik
       break
     }
     logLik <- newLogLik
   }
 
-  return(list(
-    logLik        = logLik,
-    iterations    = iterations,
-    stopReason    = stopReason,
-    probabilities = probabilities,
-    mSteps        = mSteps
-  ))
+  if (length(states) == 0)
+    stop(gettext("The EM algorithm produced no valid state."))
+
+  if (states[["last"]][["iteration"]] == states[["first"]][["iteration"]])
+    states <- states["first"]
+
+  return(unname(states))
 }
 .sapmMStep                      <- function(emFormula, dataset, covariates, family, weights, previous) {
 
@@ -496,36 +773,9 @@
 
   return(time)
 }
-.sapmInitialPosterior           <- function(survObject, components, initialization) {
-
-  time    <- .sapmObservedTimes(survObject)
-  logTime <- log(pmax(time, min(time[time > 0])))
-  nObs    <- length(logTime)
-
-  if (initialization == "kmeans" && length(unique(logTime)) <= components)
-    initialization <- "quantiles"
-
-  membership <- switch(
-    initialization,
-    "kmeans"    = {
-      clusters <- stats::kmeans(logTime, centers = components, nstart = 20)
-      match(clusters[["cluster"]], order(clusters[["centers"]][, 1]))
-    },
-    "quantiles" = as.integer(cut(rank(logTime, ties.method = "first"), components, labels = FALSE)),
-    "random"    = sample.int(components, nObs, replace = TRUE)
-  )
-
-  # soft start avoids empty components
-  posterior <- matrix(0.05 / (components - 1), nObs, components)
-  posterior[cbind(seq_len(nObs), membership)] <- 0.95
-
-  return(posterior)
-}
-.sapmWrap                       <- function(formula, dataset, options, family, components, em, caseWeights) {
+.sapmWrap                       <- function(formula, dataset, options, family, components, base, beta, probabilities, caseWeights) {
 
   mixture <- .sapmMixtureDistribution(family, components)
-  base    <- lapply(em[["mSteps"]], function(mStep) mStep[["base"]])
-  beta    <- lapply(em[["mSteps"]], function(mStep) mStep[["beta"]])
   order   <- .sapmComponentOrder(family, base)
 
   wrapFit <- function(inits, method = "BFGS") {
@@ -561,7 +811,7 @@
     return(list(fit = fit, hessianWarning = hessianWarning))
   }
 
-  inits <- .sapmInits(mixture, base[order], beta[order], em[["probabilities"]][order])
+  inits <- .sapmInits(mixture, base[order], beta[order], probabilities[order])
   wrap  <- wrapFit(inits)
   if (jaspBase::isTryError(wrap[["fit"]]))
     wrap <- wrapFit(inits, method = "Nelder-Mead")
@@ -680,20 +930,20 @@
 .sapmComponentMedian            <- function(family, base) {
   return(do.call(family[["q"]], c(list(0.5), as.list(base))))
 }
+.sapmParameterNames             <- function(family, components) {
+  return(list(
+    componentPars = as.vector(outer(family[["pars"]], seq_len(components), paste0)),
+    weightPars    = if (components > 1) paste0("v", seq_len(components - 1)) else character(0)
+  ))
+}
 .sapmBaseParameters             <- function(estimates, family, components) {
 
-  # natural baseline parameters (covariates at zero) and mixing probabilities from the transformed estimates
-  base    <- lapply(seq_len(components), function(k) {
-    stats::setNames(vapply(seq_along(family[["pars"]]), function(i) {
-      family[["inv.transforms"]][[i]](estimates[[paste0(family[["pars"]][i], k)]])
-    }, numeric(1)), family[["pars"]])
-  })
-  weights <- if (components > 1) stats::plogis(estimates[paste0("v", seq_len(components - 1))])
+  # natural baseline parameters (covariates at zero) and mixing probabilities of the transformed estimates
+  # of a fitted mixture, whose names carry the flexsurvreg order
+  names <- .sapmParameterNames(family, components)
+  parts <- .sapmUnpack(estimates[c(names[["componentPars"]], names[["weightPars"]])], family, components, 0)
 
-  return(list(
-    base          = base,
-    probabilities = as.vector(.sapmStickBreaking(if (components > 1) matrix(weights, nrow = 1), 1))
-  ))
+  return(parts[c("base", "probabilities")])
 }
 .sapmComponentEstimates         <- function(fit, family, components) {
 
@@ -724,16 +974,14 @@
   if (!is.null(covariates))
     covariates <- covariates[, -1, drop = FALSE]
 
-  return(lapply(seq_len(components), function(k) .sapmParameters(family, estimates[["base"]][[k]], estimates[["beta"]][[k]], covariates)))
+  return(.sapmComponentParameters(family, estimates, covariates))
 }
 .sapmPosterior                  <- function(fit, family, components, survObject) {
-
-  parameters <- .sapmObservationParameters(fit, family, components)
-  likelihood <- vapply(parameters, function(x) .sapmComponentLikelihood(family, survObject, x), numeric(nrow(survObject)))
-  likelihood <- matrix(pmax(likelihood, .Machine$double.xmin), nrow = nrow(survObject))
-  joint      <- sweep(likelihood, 2, .sapmComponentEstimates(fit, family, components)[["probabilities"]], "*")
-
-  return(joint / rowSums(joint))
+  return(.sapmPosteriorProbabilities(
+    family, survObject,
+    .sapmObservationParameters(fit, family, components),
+    .sapmComponentEstimates(fit, family, components)[["probabilities"]]
+  ))
 }
 .sapmDuplicatedComponents       <- function(fit, family, components, survObject) {
 
@@ -775,8 +1023,9 @@
 }
 .sapmMixtureDistribution        <- function(family, components) {
 
-  componentPars <- as.vector(outer(family[["pars"]], seq_len(components), paste0))
-  weightPars    <- if (components > 1) paste0("v", seq_len(components - 1)) else character(0)
+  names         <- .sapmParameterNames(family, components)
+  componentPars <- names[["componentPars"]]
+  weightPars    <- names[["weightPars"]]
 
   # flexsurv passes the parameters as scalars without covariates and as vectors with covariates
   splitArguments <- function(arguments, n) {
@@ -1428,18 +1677,6 @@
   if (is.null(mixture))
     return(messages)
 
-  # the EM algorithm provides only the starting values for left-truncated data (reported once in the model summary)
-  if (!mixture[["truncated"]]) {
-    if (mixture[["emStopReason"]] == "degenerate")
-      messages <- c(messages, gettextf("The EM algorithm stopped after %1$i iterations because a component degenerated; the reported fit is the polished solution.", mixture[["emIterations"]]))
-    else if (mixture[["emStopReason"]] == "maximumIterations")
-      messages <- c(messages, gettextf("The EM algorithm did not converge within the maximum of %1$i iterations; the reported fit is the polished solution.", mixture[["emIterations"]]))
-    else if (mixture[["emStopReason"]] == "decrease" && mixture[["emGap"]])
-      messages <- c(messages, gettextf("The EM algorithm stopped after %1$i iterations because the likelihood decreased (numerical precision); the reported fit is the polished solution.", mixture[["emIterations"]]))
-    else if (mixture[["emGap"]])
-      messages <- c(messages, gettext("The direct maximization of the likelihood changed the EM solution; the reported fit is the polished solution."))
-  }
-
   if (length(mixture[["collapsed"]]) > 0)
     messages <- c(messages, sprintf(ngettext(
       length(mixture[["collapsed"]]),
@@ -1470,15 +1707,12 @@
   if (length(mixtures) == 0)
     return(messages)
 
+  starts <- vapply(mixtures, function(x) attr(x, "mixture")[["starts"]], numeric(1))
   messages[["notes"]] <- gettextf(
-    "Mixture models were estimated with the EM algorithm (%1$s initialization, %2$i restarts) followed by a direct maximization of the likelihood.",
-    switch(
-      options[["mixtureInitialization"]],
-      "kmeans"    = gettext("k-means"),
-      "quantiles" = gettext("quantile-based"),
-      "random"    = gettext("random")
-    ),
-    options[["mixtureRestarts"]]
+    "Mixture models were estimated by direct maximization of the likelihood from %1$s starting values per model (%2$s), each refined by %3$i EM iterations.",
+    if (min(starts) == max(starts)) as.character(min(starts)) else gettextf("%1$i to %2$i", min(starts), max(starts)),
+    .sapmStartLabels(options),
+    options[["mixtureEmIterations"]]
   )
   if (options[["censoringType"]] == "counting")
     messages[["notes"]] <- c(messages[["notes"]], gettext("Left-truncated data: the EM algorithm provides starting values only; the estimates are from the direct maximization of the likelihood."))
@@ -1512,13 +1746,24 @@
       best <- index[which.max(logLik[index[seq_len(i - 1)]])]
       if (logLik[index[i]] < logLik[best] - 1e-6)
         messages[index[i]] <- gettextf(
-          "The log-likelihood is lower than that of the nested model with %1$s; the reported estimates are a local optimum. Consider increasing the number of restarts.",
+          "The log-likelihood is lower than that of the nested model with %1$s; the reported estimates are a local optimum. Consider more random starts.",
           .sapComponentsLabel(components[best])
         )
     }
   }
 
   return(messages)
+}
+.sapmStartLabels                <- function(options) {
+
+  labels <- c(
+    if (options[["mixtureStartKmeans"]])    gettext("k-means"),
+    if (options[["mixtureStartQuantiles"]]) gettext("quantiles"),
+    if (options[["mixtureStartSplit"]])     gettext("splits of the solution with one component fewer"),
+    if (options[["mixtureStartRandom"]])    gettextf("%1$i random", options[["mixtureStartRandomCount"]])
+  )
+
+  return(paste(labels, collapse = ", "))
 }
 .sapmCellLabel                  <- function(fit, options, components = attr(fit, "components")) {
   return(gettextf(

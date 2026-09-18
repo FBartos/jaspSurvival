@@ -40,7 +40,8 @@
       # as such, they need to be changed during the fitting process
       "coefficientsConfidenceIntervalLevel",
       # the numbers of components are not included as the fits are updated only if the corresponding number of components changes
-      if (options[["analysisType"]] == "mixture") c("mixtureInitialization", "mixtureRestarts", "mixtureMaximumIterations", "setSeed", "seed")
+      if (options[["analysisType"]] == "mixture") c("mixtureStartKmeans", "mixtureStartQuantiles", "mixtureStartSplit",
+                                                    "mixtureStartRandom", "mixtureStartRandomCount", "mixtureEmIterations", "setSeed", "seed")
     ))
     jaspResults[["fit"]] <- fitContainer
     out                  <- NULL
@@ -123,7 +124,11 @@
 
     # previously fitted numbers of components are kept (and only the missing ones are fitted)
     for (k in components) {
-      out[[distributions[i]]][[as.character(k)]] <- .sapFitDistribution(out[[distributions[i]]][[as.character(k)]], dataset, options, distributions[i], k)
+      # the fits with one component fewer of the same distribution supply the split starts of the mixture models
+      out[[distributions[i]]][[as.character(k)]] <- .sapFitDistribution(
+        out[[distributions[i]]][[as.character(k)]], dataset, options, distributions[i], k,
+        previous = out[[distributions[i]]][[as.character(k - 1)]]
+      )
       if (options[["analysisType"]] == "mixture")
         progressbarTick()
     }
@@ -134,7 +139,7 @@
 
   return(out)
 }
-.sapFitDistribution     <- function(out, dataset, options, distribution, components) {
+.sapFitDistribution     <- function(out, dataset, options, distribution, components, previous = NULL) {
 
   for (i in seq_along(options[["modelTerms"]])) {
 
@@ -168,8 +173,9 @@
       }
     }
 
-    # fit the model
-    out[[i]] <- .sapFitModel(dataset, options, distribution, options[["modelTerms"]][[i]], components)
+    # fit the model (the same model of the previous number of components, when it is available)
+    out[[i]] <- .sapFitModel(dataset, options, distribution, options[["modelTerms"]][[i]], components,
+                             previous = .sapPreviousComponentsFit(previous, options[["modelTerms"]][[i]], i))
 
   }
 
@@ -185,10 +191,35 @@
 
   return(out)
 }
-.sapFitModel            <- function(dataset, options, distribution, modelTerms, components) {
+.sapPreviousComponentsFit <- function(previous, modelTerms, index) {
+
+  # the fit with one component fewer supplies the split starts only when it is the same model:
+  # the store keeps the fits of previously specified model terms, and those are not a starting point
+  # of the current model (the chain is then fitted by the mixture estimator itself)
+  if (length(previous) < index)
+    return(NULL)
+
+  candidate <- previous[[index]]
+  if (jaspBase::isTryError(candidate))
+    return(NULL)
+
+  previousTerms <- attr(candidate, "modelTerms")
+  if (is.null(previousTerms))
+    return(NULL)
+
+  # compare without a title - renaming a model does not change it
+  previousTerms$title <- ""
+  modelTerms$title    <- ""
+
+  if (!isTRUE(all.equal(previousTerms, modelTerms)))
+    return(NULL)
+
+  return(candidate)
+}
+.sapFitModel            <- function(dataset, options, distribution, modelTerms, components, previous = NULL) {
 
   if (components > 1) {
-    fit <- .sapmFitModel(dataset, options, distribution, modelTerms, components)
+    fit <- .sapmFitModel(dataset, options, distribution, modelTerms, components, previous)
   } else {
     fit <- try(flexsurv::flexsurvreg(
       formula = .sapGetFormula(options, modelTerms),
