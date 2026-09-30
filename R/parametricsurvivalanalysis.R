@@ -17,8 +17,19 @@
 
 ParametricSurvivalAnalysis <- function(jaspResults, dataset, options, state = NULL) {
 
-  if (.saSurvivalReady(options))
+  options[["analysisType"]] <- "parametric"
+  .sapRun(jaspResults, dataset, options)
+
+  return()
+}
+
+.sapRun <- function(jaspResults, dataset, options) {
+
+  if (.saSurvivalReady(options)) {
     dataset <- .saCheckDataset(dataset, options, type = "parametric")
+    if (options[["analysisType"]] == "mixture")
+      .sapmCheckDataset(dataset, options)
+  }
 
   # Censoring summary table
   if (options[["censoringSummary"]])
@@ -76,6 +87,18 @@ ParametricSurvivalAnalysis <- function(jaspResults, dataset, options, state = NU
   if (isTRUE(options[["probabilityPlot"]]))
     .sapProbabilityPlot(jaspResults, options)
 
+  # Mixture
+  if (options[["analysisType"]] == "mixture") {
+    if (options[["mixtureComponentsTable"]])
+      .sapmComponentsTable(jaspResults, options)
+    if (options[["mixtureClassificationTable"]])
+      .sapmClassificationTable(jaspResults, options)
+    if (options[["mixtureDiagnosticsTable"]])
+      .sapmDiagnosticsTable(jaspResults, options)
+    if (options[["mixtureComponentPlot"]])
+      .sapmComponentPlot(jaspResults, options)
+  }
+
   return()
 }
 
@@ -86,9 +109,16 @@ ParametricSurvivalAnalysis <- function(jaspResults, dataset, options, state = NU
   "selectedParametricDistributionGeneralizedGamma" ,"selectedParametricDistributionGompertz" ,"selectedParametricDistributionLogLogistic" ,
   "selectedParametricDistributionLogNormal" ,"selectedParametricDistributionWeibull" ,"selectedParametricDistributionGeneralizedGammaOriginal" ,
   "selectedParametricDistributionGeneralizedFOriginal",
-  "modelTerms", "includeIntercept",
+  "modelTerms",
   "includeFullDatasetInSubgroupAnalysis",
   # the CIs are not a simple multiplier of the standard error
   # as such, they need to be changed during the fitting process
   "coefficientsConfidenceIntervalLevel"
 )
+.sapGetDependencies <- function(options) {
+
+  if (options[["analysisType"]] == "mixture")
+    return(c(.sapDependencies, .sapmDependencies))
+
+  return(.sapDependencies)
+}
