@@ -1,9 +1,8 @@
 msgid ""
 msgstr ""
-"PO-Revision-Date: 2026-09-21 20:51+0000\n"
+"PO-Revision-Date: 2026-09-26 15:28+0000\n"
 "Last-Translator: ecadrian <ecadrian@hotmail.com>\n"
-"Language-Team: Spanish <https://hosted.weblate.org/projects/jasp/"
-"jaspsurvival-qml/es/>\n"
+"Language-Team: Spanish <https://hosted.weblate.org/projects/jasp/jaspsurvival-qml/es/>\n"
 "Language: es\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -25,7 +24,7 @@ msgstr ""
 #: inst/Description.qml:13
 msgctxt "Description|"
 msgid "Classical"
-msgstr ""
+msgstr "Clásico"
 
 #: inst/Description.qml:19
 msgctxt "Description|"

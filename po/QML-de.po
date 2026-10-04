@@ -76,6 +76,17 @@ msgid ""
 "test, and Fleming-Harrington test. Additionally, you can generate life "
 "tables to summarize survival data at specified intervals."
 msgstr ""
+"Diese Analyse berechnet eine Überlebenskurve für zensierte Daten unter "
+"Verwendung des Kaplan-Meier-Schätzers für Überlebensdaten mit "
+"Einzelereignissen. Sie schätzt die Überlebenswahrscheinlichkeit im "
+"Zeitverlauf und ermöglicht es Ihnen, die Verteilung der Überlebenszeiten in "
+"Ihren Daten zu verstehen und zu visualisieren. Die Analyse berücksichtigt "
+"zensierte Beobachtungen (Probanden, bei denen das Ereignis während des "
+"Studienzeitraums nicht eingetreten ist) und ermöglicht den Vergleich von "
+"Überlebenskurven zwischen verschiedenen Gruppen mithilfe statistischer Tests "
+"wie dem Log-Rank-Test, dem Peto- und Peto-Test sowie dem Fleming-Harrington-"
+"Test. Darüber hinaus können Sie Lebenserwartungstabellen erstellen, um die "
+"Überlebensdaten in festgelegten Intervallen zusammenzufassen."
 
 #: inst/qml/NonParametricSurvivalAnalysis.qml:39
 msgctxt "NonParametricSurvivalAnalysis|"
@@ -88,6 +99,8 @@ msgid ""
 "Select the variable that represents the time until the event or censoring "
 "occurs."
 msgstr ""
+"Auswahl der Variable, die die Dauer bis zum Eintreten des Ereignisses oder "
+"der Zensierung angibt."
 
 #: inst/qml/NonParametricSurvivalAnalysis.qml:49
 msgctxt "NonParametricSurvivalAnalysis|"
@@ -100,6 +113,8 @@ msgid ""
 "Choose the variable that indicates the event status, specifying whether each "
 "observation is an event or censored."
 msgstr ""
+"Auswahl der Variable, die den Ereignisstatus angibt, und für festlegen ob "
+"jede Beobachtung ein Ereignis oder eine Zensierung ist."
 
 #: inst/qml/NonParametricSurvivalAnalysis.qml:58
 msgctxt "NonParametricSurvivalAnalysis|"
@@ -1104,12 +1119,15 @@ msgctxt "ParametricSurvivalAnalysis|"
 msgid "Event Status"
 msgstr "Ereignisstatus"
 
+#, fuzzy
 #: inst/qml/ParametricSurvivalAnalysis.qml:85
 msgctxt "ParametricSurvivalAnalysis|"
 msgid ""
 "Choose the variable that indicates the event status, specifying whether each "
 "observation is an event or censored."
 msgstr ""
+"Auswahl der Variable, die den Ereignisstatus angibt, und für festlegen ob "
+"jede Beobachtung ein Ereignis oder eine Zensierung ist."
 
 #: inst/qml/ParametricSurvivalAnalysis.qml:91
 msgctxt "ParametricSurvivalAnalysis|"
@@ -1193,7 +1211,7 @@ msgstr "Rechts"
 #: inst/qml/ParametricSurvivalAnalysis.qml:160
 msgctxt "ParametricSurvivalAnalysis|"
 msgid "Counting"
-msgstr "Counting"
+msgstr "Zählen"
 
 #: inst/qml/ParametricSurvivalAnalysis.qml:167
 msgctxt "ParametricSurvivalAnalysis|"
@@ -1291,13 +1309,13 @@ msgstr "Weibull"
 #: inst/qml/ParametricSurvivalAnalysis.qml:304
 msgctxt "ParametricSurvivalAnalysis|"
 msgid "Generalized gamma (original)"
-msgstr ""
+msgstr "Verallgemeinerte Gamma (original)"
 
 #: inst/qml/ParametricSurvivalAnalysis.qml:200
 #: inst/qml/ParametricSurvivalAnalysis.qml:305
 msgctxt "ParametricSurvivalAnalysis|"
 msgid "Generalized F (original)"
-msgstr ""
+msgstr "Verallgemeinerte F (original)"
 
 #: inst/qml/ParametricSurvivalAnalysis.qml:201
 #: inst/qml/ParametricSurvivalAnalysis.qml:239
@@ -2145,7 +2163,7 @@ msgstr "Wählen Sie die Art der darzustellenden Residuen"
 #: inst/qml/qml_components/ParametricResidualPlots.qml:70
 msgctxt "ParametricSurvivalAnalysis|"
 msgid "Response"
-msgstr "Response"
+msgstr "Antwort"
 
 #: inst/qml/qml_components/ParametricResidualPlots.qml:71
 msgctxt "ParametricSurvivalAnalysis|"
@@ -2190,7 +2208,7 @@ msgstr "BIC"
 #: inst/qml/qml_components/ParametricStatistics.qml:69
 msgctxt "ParametricSurvivalAnalysis|"
 msgid "Log lik."
-msgstr "Log-Likelihood"
+msgstr "Log-Lik."
 
 #: inst/qml/qml_components/ParametricStatistics.qml:78
 msgctxt "ParametricSurvivalAnalysis|"
@@ -2702,12 +2720,15 @@ msgctxt "SemiParametricSurvivalAnalysis|"
 msgid "Event Status"
 msgstr "Ereignisstatus"
 
+#, fuzzy
 #: inst/qml/SemiParametricSurvivalAnalysis.qml:82
 msgctxt "SemiParametricSurvivalAnalysis|"
 msgid ""
 "Choose the variable that indicates the event status, specifying whether each "
 "observation is an event or censored."
 msgstr ""
+"Auswahl der Variable, die den Ereignisstatus angibt, und für festlegen ob "
+"jede Beobachtung ein Ereignis oder eine Zensierung ist."
 
 #: inst/qml/SemiParametricSurvivalAnalysis.qml:88
 msgctxt "SemiParametricSurvivalAnalysis|"
@@ -2777,7 +2798,7 @@ msgstr "Rechts"
 #: inst/qml/SemiParametricSurvivalAnalysis.qml:143
 msgctxt "SemiParametricSurvivalAnalysis|"
 msgid "Counting"
-msgstr "Counting"
+msgstr "Zählen"
 
 #: inst/qml/SemiParametricSurvivalAnalysis.qml:152
 msgctxt "SemiParametricSurvivalAnalysis|"
