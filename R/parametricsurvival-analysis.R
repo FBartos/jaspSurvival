@@ -40,6 +40,7 @@ ParametricMixtureSurvivalAnalysis <- function(jaspResults, dataset, options, sta
     if (options[["analysisType"]] == "mixture") {
       .sapmCheckDataset(dataset, options)
     }
+    .sapValidateParameterRestrictions(dataset, options)
   }
 
   # Censoring summary table
@@ -107,12 +108,13 @@ ParametricMixtureSurvivalAnalysis <- function(jaspResults, dataset, options, sta
 .sapDependencies <- c(
   "intervalStart", "intervalEnd", "timeToEvent", "eventStatus", "eventIndicator", "censoringType",
   "factors", "covariates", "weights", "subgroup", "distribution", "includeFullDatasetInSubgroupAnalysis",
-  .sapDistributionOptions, "modelTerms", "advancedSpecification",
+  "restrictParameters", "fixedParameters",
+  .sapDistributionOptions, "modelTerms", "advancedSpecification", "modelTermModifiers",
   # Coefficient intervals are computed during fitting, not by scaling the standard error.
   "coefficientsConfidenceIntervalLevel"
 )
 .sapFitExcludedDependencies <- c(
-  "modelTerms", "includeFullDatasetInSubgroupAnalysis", "mixtureComponents", "mixtureMaximumComponents",
+  "modelTerms", "modelTermModifiers", "includeFullDatasetInSubgroupAnalysis", "mixtureComponents", "mixtureMaximumComponents",
   "compareModelsAcrossComponents"
 )
 .sapOutputDependencies         <- c("compareModelsAcrossDistributions", "alwaysDisplayModelInformation")

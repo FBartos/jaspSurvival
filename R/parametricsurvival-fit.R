@@ -131,23 +131,22 @@
 
   for (i in seq_along(options[["modelTerms"]])) {
 
+    currentTerms <- .sapModelTermsForComponents(options[["modelTerms"]][[i]], components)
     # check whether the model has already been fitted
     if (length(out) >= i) {
-
-      currentTerms <- options[["modelTerms"]][[i]]
 
       if (.sapSameModelTerms(attr(out[[i]], "modelTerms"), currentTerms)) {
         # everything but the title is the same -> relabel
         attr(out[[i]], "label")      <- currentTerms[["title"]]
         attr(out[[i]], "modelTitle") <- currentTerms[["title"]]
-        attr(out[[i]], "modelTerms") <- options[["modelTerms"]][[i]]
+        attr(out[[i]], "modelTerms") <- currentTerms
         next
       }
     }
 
     # fit the model (the same model of the previous number of components, when it is available)
-    out[[i]] <- .sapFitModel(dataset, options, distribution, options[["modelTerms"]][[i]], components,
-                             previous = .sapPreviousComponentsFit(previous, options[["modelTerms"]][[i]], i))
+    out[[i]] <- .sapFitModel(dataset, options, distribution, currentTerms, components,
+                             previous = .sapPreviousComponentsFit(previous, currentTerms, i))
 
   }
 
@@ -163,11 +162,15 @@
 
   return(out)
 }
-.sapSameModelTerms <- function(previous, current) {
+.sapSameModelTerms <- function(previous, current, components = NULL) {
 
   # Titles may change without refitting; model IDs and predictor terms must match.
   previous[["title"]] <- ""
   current[["title"]]  <- ""
+  if (!is.null(components)) {
+    previous <- .sapModelTermsForComponents(previous, components)
+    current  <- .sapModelTermsForComponents(current, components)
+  }
 
   return(isTRUE(all.equal(previous, current)))
 }
@@ -187,13 +190,14 @@
   if (is.null(previousTerms))
     return(NULL)
 
-  if (!.sapSameModelTerms(previousTerms, modelTerms))
+  if (!.sapSameModelTerms(previousTerms, modelTerms, attr(candidate, "components")))
     return(NULL)
 
   return(candidate)
 }
 .sapFitModel            <- function(dataset, options, distribution, modelTerms, components, previous = NULL, silent = FALSE) {
 
+  modelTerms <- .sapModelTermsForComponents(modelTerms, components)
   validation <- try(.sapCheckTransformationData(dataset, modelTerms), silent = silent)
   if (jaspBase::isTryError(validation)) {
     fit <- validation
@@ -202,18 +206,12 @@
   } else if (options[["analysisType"]] == "mixture" && options[["mixtureConstrainMinimumSpread"]]) {
     fit <- try(.sapmFitSingle(dataset, options, distribution, modelTerms), silent = silent)
   } else {
-    fit <- try(flexsurv::flexsurvreg(
-      formula = .sapGetFormula(options, modelTerms),
-      data    = dataset,
-      dist    = distribution,
-      weights = if (options[["weights"]] != "") dataset[[options[["weights"]]]],
-      cl      = options[["coefficientsConfidenceIntervalLevel"]]
-    ), silent = silent)
+    fit <- try(.sapFitSingle(dataset, options, distribution, modelTerms), silent = silent)
   }
 
   # flexsurvreg stores a scalar NA covariance if the Hessian is not finite, the output expects a matrix
   if (!jaspBase::isTryError(fit) && !is.matrix(fit[["cov"]])) {
-    parameters   <- rownames(fit[["res.t"]])
+    parameters   <- rownames(fit[["res.t"]])[setdiff(seq_len(nrow(fit[["res.t"]])), fit[["fixedpars"]])]
     fit[["cov"]] <- matrix(NA_real_, length(parameters), length(parameters), dimnames = list(parameters, parameters))
   }
 

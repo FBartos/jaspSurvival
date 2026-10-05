@@ -23,32 +23,51 @@ import QtQuick.Layouts
 import JASP.Controls
 import JASP
 
-DropDown
+Group
 {
+	id: distributionGroup
 	property bool mixture: false
 	property bool constraintActive: false
+	property var selectedFamilies: []
+	property int componentCount: 1
+	readonly property alias value: distribution.value
+	readonly property alias currentLabel: distribution.currentLabel
+	readonly property alias parametersRestricted: restrictParameters.checked
+	columns: 1
 
-	name:		"distribution"
-	id:			distribution
-	label:		qsTr("Distribution")
-	startValue:	"weibull"
-	info: mixture ? qsTranslate("ParametricMixtureSurvivalAnalysis", "Choose the parametric distribution of the mixture components (all components come from the same distribution). All fits and display results for all 'Selected parametric families' in the 'Advanced' section. 'Best AIC' and 'Best BIC' fit all `Selected parametric families` in the Advanced section and display the results only for a parametric family with the lowest AIC/BIC. Families without a closed-form weighted fit (gamma, Gompertz, and the generalized families) are considerably slower to estimate.") : qsTr("Choose the parametric distribution for the analysis. All fits and display results for all 'Selected parametric families' in the 'Advanced' section. 'Best AIC' and 'Best BIC' fit all `Selected parametric families` in the Advanced section and display the results only for a parametric family with the lowest AIC/BIC.")
-	values:
-	[
-		{ label: qsTr("Exponential"),						value: "exponential" },
-		{ label: qsTr("Gamma"),								value: "gamma" },
-		{ label: qsTr("Generalized F"),						value: "generalizedF" },
-		{ label: qsTr("Generalized gamma"),					value: "generalizedGamma" },
-		{ label: qsTr("Gompertz"),							value: "gompertz" },
-		{ label: qsTr("Log-logistic"),						value: "logLogistic" },
-		{ label: qsTr("Log-normal"),						value: "logNormal" },
-		{ label: qsTr("Weibull"),							value: "weibull" },
-		{ label: qsTr("Generalized gamma (original)"),		value: "generalizedGammaOriginal" },
-		{ label: qsTr("Generalized F (original)"),			value: "generalizedFOriginal" },
-		{ label: qsTr("All"),								value: "all"},
-		{ label: qsTr("Best AIC"),							value: "bestAic"},
-		{ label: qsTr("Best BIC"),							value: "bestBic"}
-	].filter(function(item) {
-		return !constraintActive || ["gamma", "logLogistic", "logNormal", "weibull", "all", "bestAic", "bestBic"].indexOf(item.value) >= 0
-	})
+	DropDown
+	{
+		depends: distributionGroup.depends
+		name:		"distribution"
+		id:			distribution
+		label:		qsTr("Distribution")
+		startValue:	"weibull"
+		info: mixture ? qsTranslate("ParametricMixtureSurvivalAnalysis", "Choose the parametric distribution of the mixture components (all components come from the same distribution). All fits and display results for all 'Selected parametric families' in the 'Advanced' section. 'Best AIC' and 'Best BIC' fit all `Selected parametric families` in the Advanced section and display the results only for a parametric family with the lowest AIC/BIC. Families without a closed-form weighted fit (gamma, Gompertz, and the generalized families) are considerably slower to estimate.") : qsTr("Choose the parametric distribution for the analysis. All fits and display results for all 'Selected parametric families' in the 'Advanced' section. 'Best AIC' and 'Best BIC' fit all `Selected parametric families` in the Advanced section and display the results only for a parametric family with the lowest AIC/BIC.")
+		values:
+		[
+			{ label: qsTr("Exponential"),						value: "exponential" },
+			{ label: qsTr("Gamma"),								value: "gamma" },
+			{ label: qsTr("Generalized F"),						value: "generalizedF" },
+			{ label: qsTr("Generalized gamma"),					value: "generalizedGamma" },
+			{ label: qsTr("Gompertz"),							value: "gompertz" },
+			{ label: qsTr("Log-logistic"),						value: "logLogistic" },
+			{ label: qsTr("Log-normal"),						value: "logNormal" },
+			{ label: qsTr("Weibull"),							value: "weibull" },
+			{ label: qsTr("Generalized gamma (original)"),		value: "generalizedGammaOriginal" },
+			{ label: qsTr("Generalized F (original)"),			value: "generalizedFOriginal" },
+			{ label: qsTr("All"),								value: "all"},
+			{ label: qsTr("Best AIC"),							value: "bestAic"},
+			{ label: qsTr("Best BIC"),							value: "bestBic"}
+		].filter(function(item) {
+			return !distributionGroup.constraintActive || ["gamma", "logLogistic", "logNormal", "weibull", "all", "bestAic", "bestBic"].indexOf(item.value) >= 0
+		})
+	}
+
+	CheckBox
+	{
+		id: restrictParameters
+		name: "restrictParameters"
+		label: qsTr("Restrict parameters")
+		info: qsTr("Fix distribution parameters at specified values. Leave a field empty to estimate that parameter. Values use the distribution's native parameter scale. With predictors, fixed location parameters refer to the reference level of factors and zero value of covariates. Mixture fits with fewer components use only the first component specifications; component numbering is retained when parameters are fixed.")
+	}
 }

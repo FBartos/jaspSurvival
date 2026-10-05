@@ -29,6 +29,18 @@ Group
 	property var constraintControl: null
 	property bool constraintActive: false
 	property string selectedDistribution: "weibull"
+	readonly property var selectedFamilies: [
+		{label: qsTr("Exponential"), value: "exponential", selected: exponential.checked},
+		{label: qsTr("Gamma"), value: "gamma", selected: gamma.checked},
+		{label: qsTr("Generalized F"), value: "generalizedF", selected: generalizedF.checked},
+		{label: qsTr("Generalized gamma"), value: "generalizedGamma", selected: generalizedGamma.checked},
+		{label: qsTr("Gompertz"), value: "gompertz", selected: gompertz.checked},
+		{label: qsTr("Log-logistic"), value: "logLogistic", selected: logLogistic.checked},
+		{label: qsTr("Log-normal"), value: "logNormal", selected: logNormal.checked},
+		{label: qsTr("Weibull"), value: "weibull", selected: weibull.checked},
+		{label: qsTr("Generalized gamma (original)"), value: "generalizedGammaOriginal", selected: generalizedGammaOriginal.checked},
+		{label: qsTr("Generalized F (original)"), value: "generalizedFOriginal", selected: generalizedFOriginal.checked}
+	].filter(function(item) { return item.selected; })
 
 	title:		qsTr("Selected Parametric Distributions")
 	enabled:	selectedDistribution === "all" || selectedDistribution === "bestAic" || selectedDistribution === "bestBic"
@@ -36,15 +48,17 @@ Group
 	ConstraintFamilyCheckBox
 	{
 		name: "selectedParametricDistributionExponential"
+		id: exponential
 		label: qsTr("Exponential")
 		checked: true
 		depends: distributions.constraintControl
 		constraintActive: distributions.constraintActive
 	}
-	CheckBox { name: "selectedParametricDistributionGamma";						label: qsTr("Gamma");							checked: true }
+	CheckBox { name: "selectedParametricDistributionGamma"; id: gamma;			label: qsTr("Gamma");							checked: true }
 	ConstraintFamilyCheckBox
 	{
 		name: "selectedParametricDistributionGeneralizedF"
+		id: generalizedF
 		label: qsTr("Generalized F")
 		checked: true
 		depends: distributions.constraintControl
@@ -53,6 +67,7 @@ Group
 	ConstraintFamilyCheckBox
 	{
 		name: "selectedParametricDistributionGeneralizedGamma"
+		id: generalizedGamma
 		label: qsTr("Generalized gamma")
 		checked: true
 		depends: distributions.constraintControl
@@ -61,17 +76,19 @@ Group
 	ConstraintFamilyCheckBox
 	{
 		name: "selectedParametricDistributionGompertz"
+		id: gompertz
 		label: qsTr("Gompertz")
 		checked: true
 		depends: distributions.constraintControl
 		constraintActive: distributions.constraintActive
 	}
-	CheckBox { name: "selectedParametricDistributionLogLogistic";				label: qsTr("Log-logistic");					checked: true }
-	CheckBox { name: "selectedParametricDistributionLogNormal";					label: qsTr("Log-normal");						checked: true }
-	CheckBox { name: "selectedParametricDistributionWeibull";					label: qsTr("Weibull");							checked: true }
+	CheckBox { name: "selectedParametricDistributionLogLogistic"; id: logLogistic;	label: qsTr("Log-logistic");					checked: true }
+	CheckBox { name: "selectedParametricDistributionLogNormal"; id: logNormal;	label: qsTr("Log-normal");						checked: true }
+	CheckBox { name: "selectedParametricDistributionWeibull"; id: weibull;		label: qsTr("Weibull");							checked: true }
 	ConstraintFamilyCheckBox
 	{
 		name: "selectedParametricDistributionGeneralizedGammaOriginal"
+		id: generalizedGammaOriginal
 		label: qsTr("Generalized gamma (original)")
 		checked: false
 		depends: distributions.constraintControl
@@ -80,6 +97,7 @@ Group
 	ConstraintFamilyCheckBox
 	{
 		name: "selectedParametricDistributionGeneralizedFOriginal"
+		id: generalizedFOriginal
 		label: qsTr("Generalized F (original)")
 		checked: false
 		depends: distributions.constraintControl

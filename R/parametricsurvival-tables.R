@@ -308,6 +308,13 @@
   for (i in seq_along(messages))
     estimatesTable$addFootnote(messages[[i]])
 
+  fixedFits <- vapply(fit, function(x) !jaspBase::isTryError(x) && length(attr(x, "fixedParameters")) > 0L, logical(1))
+  if (any(fixedFits)) {
+    estimatesTable$addFootnote(gettext("Fixed parameters are specified by the user; their standard errors and confidence intervals are not estimated."))
+    if (any(vapply(fit[fixedFits], function(x) attr(x, "components") > 1L, logical(1))))
+      estimatesTable$addFootnote(gettext("Mixture components with fixed parameters retain the specified numbering."))
+  }
+
   if (any(sapply(fit, function(x) !jaspBase::isTryError(x) && attr(x, "components") > 1))) {
     estimatesTable$addFootnote(gettext("The standard errors and confidence intervals of the mixing probabilities are based on the delta method."))
     if (anyRegression)
@@ -448,7 +455,7 @@
 
   # one has recreate the matrix and use the names from the coefficients from the res table because
   # the the covariance matrix drops names if there is only a single parameter
-  covMat <- data.frame(fit[["cov"]])
+  covMat <- data.frame(.sapParameterCovariance(fit))
   if (.sapConstraintActive(fit))
     covMat[,] <- NA_real_
   colnames(covMat) <- rownames(fit[["res"]]) -> rownames(covMat)

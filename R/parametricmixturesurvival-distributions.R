@@ -18,6 +18,10 @@
 # Component parameters and native mixture distribution functions.
 .sapmOrderedInits               <- function(fit, family, components) {
 
+  # Fixed values identify components; median ordering would assign them to other components.
+  if (length(fit[["fixedpars"]]) > 0L)
+    return(unname(fit[["res"]][, "est"]))
+
   # order estimates before flexsurvreg constructs their covariance and confidence intervals
   estimates <- .sapmComponentEstimates(fit, family, components)
   order     <- .sapmComponentOrder(family, estimates[["base"]])
@@ -34,6 +38,13 @@
   inits[weightIndex] <- stats::plogis(.sapmReorderedWeights(fit[["res.t"]][weightIndex, "est"], order))
 
   return(unname(inits))
+}
+.sapmFixedNativeParameters <- function(fixed) {
+  return(unlist(lapply(seq_along(fixed), function(k) {
+    if (length(fixed[[k]]) == 0L)
+      return(numeric(0))
+    return(stats::setNames(fixed[[k]], paste0(names(fixed[[k]]), k)))
+  }), use.names = TRUE))
 }
 .sapmReorderedWeights           <- function(estimates, order) {
 

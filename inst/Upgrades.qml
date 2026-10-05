@@ -1,33 +1,8 @@
 import QtQuick
 import JASP.Module
-import "qml/qml_components/ParametricModelUpgrade.js" as ModelUpgrade
 
 Upgrades
 {
-	Upgrade
-	{
-		functionName: "ParametricSurvivalAnalysis"
-		fromVersion: "0.97.0"
-		toVersion: "0.97.1"
-		ChangeJS
-		{
-			name: "modelTerms"
-			jsFunction: function(options) { return ModelUpgrade.modelTerms(options); }
-		}
-	}
-
-	Upgrade
-	{
-		functionName: "ParametricMixtureSurvivalAnalysis"
-		fromVersion: "0.97.0"
-		toVersion: "0.97.1"
-		ChangeJS
-		{
-			name: "modelTerms"
-			jsFunction: function(options) { return ModelUpgrade.modelTerms(options); }
-		}
-	}
-
 	Upgrade
 	{
 		functionName: "ParametricSurvivalAnalysis"

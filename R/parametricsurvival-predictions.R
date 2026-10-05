@@ -123,7 +123,7 @@
 .sapSummaryPredictions <- function(fit, ..., ci, seed = NULL) {
 
   activeBound <- .sapConstraintActive(fit)
-  includeCI <- ci && !activeBound && all(is.finite(fit[["cov"]]))
+  includeCI <- ci && !activeBound && fit[["npars"]] > 0L && all(is.finite(fit[["cov"]]))
   # Reset each simulation so output order and cached fits do not change its draws.
   if (includeCI && !is.null(seed))
     jaspBase::.setSeedJASP(list(setSeed = TRUE, seed = seed))
@@ -138,6 +138,10 @@
   if (!is.null(predictionLabels))
     names(data) <- predictionLabels
   for (i in seq_along(data)) {
+    if (ci && !activeBound && fit[["npars"]] == 0L) {
+      data[[i]][["lcl"]] <- data[[i]][["est"]]
+      data[[i]][["ucl"]] <- data[[i]][["est"]]
+    }
     if (!"lcl" %in% names(data[[i]])) data[[i]][["lcl"]] <- rep(NA_real_, nrow(data[[i]]))
     if (!"ucl" %in% names(data[[i]])) data[[i]][["ucl"]] <- rep(NA_real_, nrow(data[[i]]))
     if (anyNA(data[[i]][["est"]]))

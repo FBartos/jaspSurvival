@@ -58,7 +58,11 @@
 
   family      <- .sapmFamily(distribution)
   constraint  <- .sapmConstraintSpec(options, distribution, dataset, modelTerms)
-  formula     <- .sapGetFormula(options, modelTerms)
+  fixed       <- .sapFixedParameters(options, distribution, components)
+  .sapCheckFixedConstraint(fixed, constraint)
+  formula     <- .sapGetFormula(options, modelTerms, dataset)
+  regression  <- lapply(seq_len(components), function(k) .sapRegressionFixed(dataset, modelTerms, formula, k))
+  nativeFixed <- c(.sapmFixedNativeParameters(fixed), .sapmRegressionFixed(regression, family, components))
   survObject  <- .saGetSurvObject(options, dataset)
   caseWeights <- if (options[["weights"]] != "") dataset[[options[["weights"]]]] else rep(1, nrow(dataset))
   truncated   <- options[["censoringType"]] == "counting"
@@ -74,9 +78,10 @@
 
   # the M-steps always estimate the intercept (flexsurvreg ignores its removal as well)
   termLabels  <- attr(stats::terms(formula), "term.labels")
-  emFormula   <- stats::reformulate(if (length(termLabels) > 0) termLabels else "1", response = .sapGetFormula(emOptions, modelTerms)[[2]])
+  emFormula   <- stats::reformulate(if (length(termLabels) > 0) termLabels else "1", response = .sapGetFormula(emOptions, modelTerms, dataset)[[2]])
   covariates  <- stats::model.matrix(emFormula, stats::model.frame(emFormula, dataset))[, -1, drop = FALSE]
   mixture     <- .sapmMixtureDistribution(family, components)
+  parameterNames <- .sapmParameterOrder(mixture, family, components, colnames(covariates))
 
   # the solution with one component fewer supplies the split starts
   previousSolution <- NULL
@@ -104,7 +109,9 @@
       caseWeights = caseWeights,
       posterior   = start[["posterior"]],
       iterations  = options[["mixtureEmIterations"]],
-      constraint  = constraint
+      constraint  = constraint,
+      fixed       = fixed,
+      regression  = regression
     ), silent = TRUE)
 
     if (jaspBase::isTryError(states)) {
@@ -115,9 +122,9 @@
 
     for (state in states) {
 
-      order  <- .sapmComponentOrder(family, state[["base"]])
+      order  <- if (length(nativeFixed) > 0L) seq_len(components) else .sapmComponentOrder(family, state[["base"]])
       inits  <- .sapmInits(mixture, state[["base"]][order], state[["beta"]][order], state[["probabilities"]][order])
-      native <- .sapmNativeFit(formula, dataset, options, family, components, mixture, inits, caseWeights, constraint = constraint)
+      native <- .sapmNativeFit(formula, dataset, options, family, components, mixture, inits, caseWeights, constraint = constraint, fixed = nativeFixed, parameterNames = parameterNames)
       if (jaspBase::isTryError(native[["fit"]])) {
         fitError <- jaspBase::.extractErrorMessage(native[["fit"]])
         next
@@ -157,7 +164,7 @@
   best      <- candidates[[selection[["selected"]]]]
 
   # native covariance/CI construction at the selected estimates, without another optimization
-  native <- .sapmNativeFit(formula, dataset, options, family, components, mixture, best[["inits"]], caseWeights, hessian = TRUE, constraint = constraint)
+  native <- .sapmNativeFit(formula, dataset, options, family, components, mixture, best[["inits"]], caseWeights, hessian = TRUE, constraint = constraint, fixed = nativeFixed, parameterNames = parameterNames)
   if (jaspBase::isTryError(native[["fit"]]))
     stop(gettextf("The mixture model could not be finalized: %1$s", jaspBase::.extractErrorMessage(native[["fit"]])))
 
@@ -341,6 +348,9 @@
 
   hessian <- fit[["opt"]][["hessian"]]
 
+  if (fit[["npars"]] == 0L)
+    return(TRUE)
+
   if (is.null(hessian) || any(!is.finite(hessian)))
     return(NA)
 
@@ -351,7 +361,7 @@
 
   return(min(eigenvalue) > 0)
 }
-.sapmEm                         <- function(emFormula, dataset, survObject, covariates, family, components, caseWeights, posterior, iterations, constraint = NULL) {
+.sapmEm                         <- function(emFormula, dataset, survObject, covariates, family, components, caseWeights, posterior, iterations, constraint = NULL, fixed = rep(list(numeric(0)), components), regression = rep(list(numeric(0)), components)) {
 
   probabilities <- colSums(posterior * caseWeights) / sum(caseWeights)
   mSteps        <- NULL
@@ -368,7 +378,8 @@
       family     = family,
       weights    = posterior[, k] * caseWeights,
       previous   = mSteps[[k]],
-      constraint = constraint
+      constraint = constraint,
+      fixed      = c(fixed[[k]], regression[[k]])
     )), silent = TRUE)
 
     # E-step: posterior probabilities of component membership
@@ -433,7 +444,7 @@
 
   return(unname(states))
 }
-.sapmMStep                      <- function(emFormula, dataset, covariates, family, weights, previous, constraint = NULL) {
+.sapmMStep                      <- function(emFormula, dataset, covariates, family, weights, previous, constraint = NULL, fixed = numeric(0)) {
 
   # Right censoring at zero contributes log S(0) = 0 for every component.
   # Exclude these neutral rows from the native component fit only; predict all rows.
@@ -449,7 +460,26 @@
   # posterior probabilities can underflow to zero which is not allowed as a weight
   weights <- pmax(weights, 1e-10)
 
-  if (!is.null(constraint) && is.null(family[["survreg"]])) {
+  if (length(fixed) > 0L) {
+
+    dlist <- flexsurv::flexsurv.dists[[family[["family"]]]]
+    if (!is.null(constraint))
+      dlist <- .sapmConstraintDistribution(family[["family"]], constraint, family)
+    fitCall <- list(formula = emFormula, data = dataset, weights = weights, dist = dlist, hessian = FALSE)
+    if (!is.null(previous))
+      fitCall[["inits"]] <- c(previous[["base"]], previous[["beta"]])
+    if (!is.null(constraint)) {
+      bounds <- .sapmConstraintBounds(constraint, family, 1L, length(family[["pars"]]) + ncol(covariates))
+      fitCall[["method"]] <- "L-BFGS-B"
+      fitCall[["lower"]]  <- bounds[["lower"]]
+      fitCall[["upper"]]  <- bounds[["upper"]]
+      fitCall[["control"]] <- list(maxit = 1000, factr = 1e5, fnscale = sum(weights), pgtol = 1e-6)
+    }
+    fit  <- suppressWarnings(suppressMessages(do.call(flexsurv::flexsurvreg, .sapFixedFitCall(fitCall, fixed, c(family[["pars"]], colnames(covariates))))))
+    base <- fit[["res"]][family[["pars"]], "est"]
+    beta <- fit[["res"]][fit[["covpars"]], "est"]
+
+  } else if (!is.null(constraint) && is.null(family[["survreg"]])) {
 
     bounds <- .sapmConstraintBounds(constraint, family, 1L, length(family[["pars"]]) + ncol(covariates))
     fitCall <- list(
@@ -631,7 +661,7 @@
 
   return(time)
 }
-.sapmNativeFit                  <- function(formula, dataset, options, family, components, mixture, inits, caseWeights, hessian = FALSE, constraint = NULL) {
+.sapmNativeFit                  <- function(formula, dataset, options, family, components, mixture, inits, caseWeights, hessian = FALSE, constraint = NULL, fixed = numeric(0), parameterNames = NULL) {
 
   hessianWarning <- FALSE
   warnings       <- character(0)
@@ -661,7 +691,8 @@
     if (hessian) {
       # BFGS with no bounds and maxit=0 evaluates the selected point without moving it.
       # L-BFGS-B may take a step even with maxit=0; its bounds must not reach this call.
-      fitCall[["hessian"]] <- !any(point[["active"]])
+      fixedIndex <- match(names(fixed), mixture[["dlist"]][["pars"]])
+      fitCall[["hessian"]] <- !any(point[["active"]] & !point[["index"]] %in% fixedIndex)
     } else {
       bounds <- .sapmConstraintBounds(constraint, family, components, length(inits))
       fitCall[["method"]]  <- "L-BFGS-B"
@@ -671,6 +702,7 @@
     }
   }
 
+  fitCall <- .sapFixedFitCall(fitCall, fixed, parameterNames)
   fit <- try(withCallingHandlers(
     suppressMessages(do.call(flexsurv::flexsurvreg, fitCall)),
     warning = function(w) {
@@ -682,6 +714,7 @@
       invokeRestart("muffleWarning")
     }
   ), silent = TRUE)
+  fit <- .sapCompleteFixedFit(fit, fixed, options[["coefficientsConfidenceIntervalLevel"]])
 
   return(list(fit = fit, hessianWarning = hessianWarning, warnings = warnings))
 }

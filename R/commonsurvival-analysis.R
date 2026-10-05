@@ -250,12 +250,12 @@
 
   return(as.formula(formula, env = parent.frame(1)))
 }
-.sapGetFormula        <- function(options, modelTerms) {
+.sapGetFormula        <- function(options, modelTerms, dataset) {
 
   # flexsurv estimates a baseline distribution parameter in every model and
   # removes the first design column as its intercept. Omitting the intercept
   # from the formula would silently discard the first predictor instead.
-  predictors <- .sapGetPredictors(modelTerms)
+  predictors <- .sapGetPredictors(modelTerms, dataset)
   survival   <- .saGetSurv(options)
   formula    <- paste(survival, "~", if (length(predictors) == 0) "1" else paste(predictors, collapse = "+"))
 
@@ -294,12 +294,12 @@
 
   return(t)
 }
-.sapGetPredictors     <- function(modelTerms) {
+.sapGetPredictors     <- function(modelTerms, dataset) {
 
   t <- NULL
   for (i in seq_along(modelTerms[["components"]])) {
     term <- vapply(modelTerms[["components"]][[i]], function(variable)
-      .sapVariableExpression(variable, modelTerms[["transformations"]][[variable]]), character(1))
+      .sapVariableExpression(variable, modelTerms[["transformations"]][[variable]], dataset), character(1))
     if (length(term) == 1)
       t <- c(t, term)
     else

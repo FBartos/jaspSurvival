@@ -134,7 +134,7 @@
 .sapPlotFactorPredictions <- function(fit, options) {
 
   modelFrame <- stats::model.frame(fit)
-  predictors <- unique(attr(modelFrame, "covnames.orig"))
+  predictors <- unique(unlist(attr(fit, "modelTerms")[["components"]], use.names = FALSE))
   factors    <- .sapFittedFactors(fit, options)
   covariates <- intersect(predictors, unlist(options[["covariates"]], use.names = FALSE))
   transformedFactors <- intersect(factors, names(attr(fit, "modelTerms")[["transformations"]]))

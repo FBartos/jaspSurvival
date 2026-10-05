@@ -54,6 +54,8 @@ Form
 			mixture: true
 			depends: mixtureConstrainMinimumSpread
 			constraintActive: mixtureConstrainMinimumSpread.checked
+			selectedFamilies: distributions.selectedFamilies
+			componentCount: form.multipleComponentsSelected ? mixtureMaximumComponents.value : Number(mixtureComponents.value)
 		}
 
 		DropDown
@@ -76,10 +78,16 @@ Form
 		}
 	}
 
+	SA.ParametricParameterRestrictions
+	{
+		selector: distribution
+	}
+
 	SA.ParametricModel
 	{
 		id: models
 		mixture: true
+		componentCount: distribution.componentCount
 	}
 
 	SA.ParametricStatistics
@@ -98,7 +106,7 @@ Form
 					label:		qsTr("Mean and median")
 					name:		"mixtureComponentsTable"
 					checked:	false
-					info: qsTr("Include a table with the mean and the median lifetime of each mixture component. They correspond to the reference level of factors and zero value of covariates. The mixing probabilities and the parameters of the components are reported in the coefficients summary. Components are ordered by their median lifetime.")
+					info: qsTr("Include a table with the mean and the median lifetime of each mixture component. They correspond to the reference level of factors and zero value of covariates. The mixing probabilities and the parameters of the components are reported in the coefficients summary. Components are ordered by their median lifetime unless parameters are fixed, in which case the specified numbering is retained.")
 				}
 
 				CheckBox
@@ -295,6 +303,7 @@ Form
 
 		SA.ParametricDistributions
 		{
+			id: distributions
 			selectedDistribution: distribution.value
 			constraintControl: mixtureConstrainMinimumSpread
 			constraintActive: mixtureConstrainMinimumSpread.checked

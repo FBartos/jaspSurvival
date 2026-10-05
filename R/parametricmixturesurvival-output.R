@@ -206,7 +206,7 @@
   standardError <- rep(NA_real_, length(estimate))
   if (!.sapConstraintActive(fit)) {
     jacobian  <- matrix(0, length(estimate), length(estimates))
-    baseIndex <- setdiff(seq_along(estimates), fit[["covpars"]])
+    baseIndex <- setdiff(seq_along(estimates), c(fit[["covpars"]], fit[["fixedpars"]]))
     for (i in baseIndex) {
       step          <- 1e-5 * max(abs(estimates[i]), 1)
       upper         <- lower <- estimates
@@ -214,7 +214,7 @@
       lower[i]      <- lower[i] - step
       jacobian[, i] <- (quantities(upper) - quantities(lower)) / (2 * step)
     }
-    standardError <- sqrt(pmax(diag(jacobian %*% fit[["cov"]] %*% t(jacobian)), 0))
+    standardError <- sqrt(pmax(diag(jacobian %*% .sapParameterCovariance(fit) %*% t(jacobian)), 0))
   }
 
   estimate[!is.finite(estimate)]           <- NA

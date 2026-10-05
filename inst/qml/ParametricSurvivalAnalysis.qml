@@ -45,6 +45,12 @@ Form
 	SA.ParametricDistribution
 	{
 		id: distribution
+		selectedFamilies: distributions.selectedFamilies
+	}
+
+	SA.ParametricParameterRestrictions
+	{
+		selector: distribution
 	}
 
 	SA.ParametricModel
@@ -95,6 +101,7 @@ Form
 
 		SA.ParametricDistributions
 		{
+			id: distributions
 			selectedDistribution: distribution.value
 		}
 
