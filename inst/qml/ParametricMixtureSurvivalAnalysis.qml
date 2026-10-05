@@ -122,6 +122,7 @@ Form
 
 	SA.ParametricPredictions
 	{
+		predictionPredictors: variables.predictionPredictors
 		rightCensoring:	censoring.rightCensoring
 		mergeDistributionsAvailable:	form.mergeDistributionsAvailable
 		categoricalLevelsPossible:	categoricalPredictionLevelsPossible

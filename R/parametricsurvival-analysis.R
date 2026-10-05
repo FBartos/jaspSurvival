@@ -34,6 +34,7 @@ ParametricMixtureSurvivalAnalysis <- function(jaspResults, dataset, options, sta
 .sapRun <- function(jaspResults, dataset, options) {
 
   options <- .sapPrepareModelTerms(options)
+  predictionDataset <- dataset
 
   if (.saSurvivalReady(options)) {
     dataset <- .saCheckDataset(dataset, options, type = "parametric")
@@ -74,6 +75,8 @@ ParametricMixtureSurvivalAnalysis <- function(jaspResults, dataset, options, sta
     if (options[[paste0(measure, "Plot")]])
       .sapPredictionOutput(jaspResults, options, measure, plot = TRUE)
   }
+  if (options[["customPredictions"]])
+    .sapCustomPredictions(jaspResults, predictionDataset, dataset, options)
 
   # Diagnostics
   .sapResidualPlots(jaspResults, options)

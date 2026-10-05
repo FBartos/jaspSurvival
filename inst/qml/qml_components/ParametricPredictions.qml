@@ -33,6 +33,7 @@ Section
 	property bool mergeTimeComponentsActive:	false
 	property bool mergeLifeComponentsActive:	false
 	property bool extraPlotSelected:	false
+	property var predictionPredictors: []
 	property alias survivalTimeExtraControls:	survivalTimeExtras.content
 	property alias lifeTimeExtraControls:	lifeTimeExtras.content
 
@@ -507,5 +508,17 @@ Section
 		}
 
 	}
+	Rectangle
+	{
+		Layout.columnSpan: 2
+		Layout.fillWidth: true
+		implicitHeight: 1
+		color: jaspTheme.uiBorder
+	}
 
+	ParametricCustomPredictions
+	{
+		Layout.columnSpan: 2
+		predictionPredictors: predictionsRoot.predictionPredictors
+	}
 }

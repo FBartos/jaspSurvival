@@ -30,4 +30,80 @@ Upgrades
 			}
 		}
 	}
+
+	Upgrade
+	{
+		functionName: "ParametricSurvivalAnalysis"
+		fromVersion: "0.97.0"
+		toVersion: "0.97.1"
+
+		ChangeSetValue
+		{
+			name: "advancedSpecification"
+			condition: function(options) { return options["advancedSpecification"] === undefined; }
+			jsonValue: false
+		}
+		ChangeSetValue
+		{
+			name: "modelTermModifiers"
+			condition: function(options) { return options["modelTermModifiers"] === undefined; }
+			jsonValue: []
+		}
+		ChangeSetValue
+		{
+			name: "restrictParameters"
+			condition: function(options) { return options["restrictParameters"] === undefined; }
+			jsonValue: false
+		}
+		ChangeSetValue
+		{
+			name: "fixedParameters"
+			condition: function(options) { return options["fixedParameters"] === undefined; }
+			jsonValue: []
+		}
+		ChangeSetValue
+		{
+			name: "customPredictions"
+			condition: function(options) { return options["customPredictions"] === undefined; }
+			jsonValue: false
+		}
+	}
+
+	Upgrade
+	{
+		functionName: "ParametricMixtureSurvivalAnalysis"
+		fromVersion: "0.97.0"
+		toVersion: "0.97.1"
+
+		ChangeSetValue
+		{
+			name: "advancedSpecification"
+			condition: function(options) { return options["advancedSpecification"] === undefined; }
+			jsonValue: false
+		}
+		ChangeSetValue
+		{
+			name: "modelTermModifiers"
+			condition: function(options) { return options["modelTermModifiers"] === undefined; }
+			jsonValue: []
+		}
+		ChangeSetValue
+		{
+			name: "restrictParameters"
+			condition: function(options) { return options["restrictParameters"] === undefined; }
+			jsonValue: false
+		}
+		ChangeSetValue
+		{
+			name: "fixedParameters"
+			condition: function(options) { return options["fixedParameters"] === undefined; }
+			jsonValue: []
+		}
+		ChangeSetValue
+		{
+			name: "customPredictions"
+			condition: function(options) { return options["customPredictions"] === undefined; }
+			jsonValue: false
+		}
+	}
 }

@@ -13,6 +13,11 @@
 
 
 ---
+# jaspSurvival 0.97.1
+## Fixed
+* Initialize new model-specification, parameter-restriction, and custom-prediction options when upgrading saved parametric and mixture survival analyses.
+* Custom dataset predictions target missing-outcome rows with predictor values; means and percentiles share one output row per observation.
+
 # jaspSurvival 0.97.0
 ## Added
 * Added the Parametric Mixture Survival Analysis
