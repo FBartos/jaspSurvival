@@ -25,26 +25,27 @@ import JASP
 
 Section
 {
+	id: modelSection
 	property bool mixture: false
 	readonly property int modelCount: modelTerms.count
-	readonly property int variableCount: modelTerms.countVariables
+	readonly property int variableCount: modelTerms.variableCount
 	readonly property bool selectionAllowsMerging: modelTerms.count == 1 || (modelTerms.count > 1 && interpretModel.value !== "bestAic" && interpretModel.value !== "bestBic")
 
 	title: qsTr("Model")
 
-	FactorsForm
+	CheckBox
+	{
+		id: advancedSpecificationControl
+		name: "advancedSpecification"
+		label: qsTr("Advanced specification")
+		info: qsTr("Choose a transformation for each main-effect variable. Interactions use the same variable transformations. Transformed factors use their numeric level labels as stress values; factors without a transformation remain categorical.")
+	}
+
+	ParametricModelTerms
 	{
 		name:				"modelTerms"
 		id:					modelTerms
-		nested:				true
-		startIndex:			1
-		initNumberFactors:	1
-		allowInteraction:	true
-		baseName:			"model"
-		baseTitle:			qsTr("Model")
-		availableVariablesListName:		"availableTerms"
-		availableVariablesList.source:	['covariates', 'factors']
-		allowedColumns:		[]
+		advancedSpecification: advancedSpecificationControl.checked
 	}
 
 	DropDown
@@ -66,7 +67,7 @@ Section
 				]
 			},
 			{
-				values: modelTerms.factorsTitles
+				values: modelTerms.modelTitles
 			}
 		]
 	}

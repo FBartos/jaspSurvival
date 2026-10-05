@@ -298,7 +298,8 @@
 
   t <- NULL
   for (i in seq_along(modelTerms[["components"]])) {
-    term <- modelTerms[["components"]][[i]]
+    term <- vapply(modelTerms[["components"]][[i]], function(variable)
+      .sapVariableExpression(variable, modelTerms[["transformations"]][[variable]]), character(1))
     if (length(term) == 1)
       t <- c(t, term)
     else

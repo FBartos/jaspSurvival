@@ -18,7 +18,7 @@
     return(.sapPlotAcrossSubgroupFactors(fit, options, plotFunction))
 
   firstFit <- fit[[which(valid)[1]]]
-  factors  <- intersect(names(stats::model.frame(firstFit)), unlist(options[["factors"]], use.names = FALSE))
+  factors  <- .sapFittedFactors(firstFit, options)
   if (firstFit[["ncovs"]] == 0 || length(factors) == 0)
     return(plotFunction(fit, options))
 
@@ -69,7 +69,7 @@
 
   valid <- vapply(fit, function(x) !is.null(x) && !jaspBase::isTryError(x) && length(x) > 0, logical(1))
   factors <- unique(unlist(lapply(fit[valid], function(model)
-    intersect(names(stats::model.frame(model)), unlist(options[["factors"]], use.names = FALSE))), use.names = FALSE))
+    .sapFittedFactors(model, options)), use.names = FALSE))
   if (length(factors) == 0)
     return(plotFunction(fit, options))
 
@@ -120,7 +120,7 @@
 .sapPlotPredictionLevels <- function(predictions, fit, options, output, emptyLabel = NA_character_) {
   labels <- if (length(predictions) > 1) decodeColNames(names(predictions)) else emptyLabel
   if (.sapMergePlotsAcrossSubgroups(options, output) && options[[paste0(output, "MergePlotsAcrossFactors")]]) {
-    factors <- intersect(names(stats::model.frame(fit)), unlist(options[["factors"]], use.names = FALSE))
+    factors <- .sapFittedFactors(fit, options)
     if (length(factors) > 0)
       labels <- decodeColNames(names(predictions))
   }
@@ -135,20 +135,25 @@
 
   modelFrame <- stats::model.frame(fit)
   predictors <- unique(attr(modelFrame, "covnames.orig"))
-  factors    <- intersect(predictors, unlist(options[["factors"]], use.names = FALSE))
+  factors    <- .sapFittedFactors(fit, options)
   covariates <- intersect(predictors, unlist(options[["covariates"]], use.names = FALSE))
-  if (length(factors) == 0 || length(covariates) == 0)
+  transformedFactors <- intersect(factors, names(attr(fit, "modelTerms")[["transformations"]]))
+  if (length(factors) == 0 || (length(covariates) == 0 && length(transformedFactors) == 0))
     return(fit)
 
   # Match separate panels: average the expanded design within each factor cell.
   # This retains interactions and flexsurv's native positional column order.
   design <- stats::model.matrix(fit)
-  groups <- split(seq_len(nrow(modelFrame)), .sapPredictorGroups(modelFrame[factors]))
+  dataset <- attr(fit, "dataset")
+  rows <- match(rownames(modelFrame), rownames(dataset))
+  stopifnot(!anyNA(rows))
+  factorData <- dataset[rows, factors, drop = FALSE]
+  groups <- split(seq_len(nrow(modelFrame)), .sapPredictorGroups(factorData))
   stopifnot(identical(rownames(modelFrame), rownames(design)), ncol(design) == fit[["ncoveffs"]])
   attr(fit, "predictionX") <- do.call(rbind, lapply(groups, function(rows)
     unname(colMeans(design[rows, , drop = FALSE]))))
   attr(fit, "predictionLabels") <- vapply(groups, function(rows) {
-    values <- vapply(modelFrame[rows[1], factors, drop = FALSE], as.character, character(1))
+    values <- vapply(factorData[rows[1], , drop = FALSE], as.character, character(1))
     paste0(factors, "=", values, collapse = ",")
   }, character(1))
 

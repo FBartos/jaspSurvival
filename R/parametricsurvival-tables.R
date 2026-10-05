@@ -233,6 +233,13 @@
   else
     sequentialModelComparisonTable$addFootnote(gettextf("Likelihood ratio test for nested models based on %s distribution.", "\U03C7\U00B2"))
 
+  if (any(vapply(seq_len(length(fit) - 1), function(i)
+      !jaspBase::isTryError(fit[[i]]) && !jaspBase::isTryError(fit[[i + 1]]) &&
+      attr(fit[[i]], "family") == attr(fit[[i + 1]], "family") &&
+      attr(fit[[i]], "components") == attr(fit[[i + 1]], "components") &&
+      !.sapModelsNested(fit[[i]], fit[[i + 1]]), logical(1))))
+    sequentialModelComparisonTable$addFootnote(gettext("A likelihood-ratio test is reported only when the second model extends the first model. Compare non-nested relationships using AIC or BIC."))
+
   sequentialModelComparisonTable$setData(data)
   sequentialModelComparisonTable$showSpecifiedColumnsOnly <- TRUE
 
@@ -288,11 +295,13 @@
     estimatesTable$addFootnote(gettext("P-values are based on a Wald test."))
 
     # fix coefficient names
-    if (any(thisRegression))
-      data[["coefficient"]][thisRegression] <- sapply(data[["coefficient"]][thisRegression], .saTermNames, variables = c(options[["covariates"]], options[["factors"]]))
+    ordinaryTerms <- thisRegression & !data[["transformedCoefficient"]]
+    if (any(ordinaryTerms))
+      data[["coefficient"]][ordinaryTerms] <- sapply(data[["coefficient"]][ordinaryTerms], .saTermNames, variables = c(options[["covariates"]], options[["factors"]]))
   }
 
   data[["isRegressionCoefficient"]] <- NULL
+  data[["transformedCoefficient"]] <- NULL
 
   # add footnotes
   messages <- .sapSelectedModelMessage(fit, options)
@@ -329,8 +338,9 @@
 
   # add columns for each parameter
   for (i in 1:nrow(data)) {
-    covarianceMatrixTable$addColumnInfo(name = data[["coefficient"]][i], title = data[["coefficient"]][i], type = "number")
+    covarianceMatrixTable$addColumnInfo(name = data[["coefficient"]][i], title = .sapTransformationNames(data[["coefficient"]][i], fit), type = "number")
   }
+  data[["coefficient"]] <- .sapTransformationNames(data[["coefficient"]], fit)
 
   # add footnotes
   if (!is.null(attr(fit, "label")))
@@ -383,7 +393,7 @@
   ll1 <- fit1$loglik
 
   df <- fit1$npars - fit0$npars
-  if (.sapConstraintActive(fit0) || .sapConstraintActive(fit1)) {
+  if (.sapConstraintActive(fit0) || .sapConstraintActive(fit1) || !.sapModelsNested(fit0, fit1)) {
     chi2 <- pValue <- NA_real_
   } else {
     chi2   <- 2 * (ll1 - ll0)
@@ -423,6 +433,9 @@
     coeffTable[["mixtureComponent"]] <- 1L
   if (options[["analysisType"]] == "mixture")
     coeffTable[["mixtureComponent"]][duplicated(coeffTable[["mixtureComponent"]])] <- NA_integer_
+  displayNames <- .sapTransformationNames(coeffTable[["coefficient"]], fit)
+  coeffTable[["transformedCoefficient"]] <- displayNames != coeffTable[["coefficient"]]
+  coeffTable[["coefficient"]] <- displayNames
   if (.sapConstraintActive(fit))
     coeffTable[c("se", "lower", "upper")] <- NA_real_
 

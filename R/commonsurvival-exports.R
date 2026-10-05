@@ -116,7 +116,7 @@
   if (options[["exportFittedMedian"]])
     values[[gettext("Fitted median survival time")]] <- .saExportValue(try(stats::predict(fit, newdata = dataset, type = "quantile", p = 0.5)[[".pred_quantile"]], silent = TRUE))
   if (options[["exportResidualsCoxSnell"]] && residualsAvailable)
-    values[[gettext("Cox-Snell residual")]] <- .saExportValue(try(stats::residuals(fit, type = "coxsnell"), silent = TRUE))
+    values[[gettext("Cox-Snell residual")]] <- .saExportValue(try(.sapResidualValues(fit, type = "coxsnell"), silent = TRUE))
 
   if (options[["analysisType"]] == "mixture" && (options[["exportMixtureProbabilities"]] || options[["exportMixtureClassification"]])) {
     posterior <- if (attr(fit, "components") == 1) matrix(1, nrow(dataset), 1) else attr(fit, "mixture")[["posterior"]]

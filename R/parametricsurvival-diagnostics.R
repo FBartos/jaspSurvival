@@ -92,7 +92,9 @@
   }
 
   for (i in seq_len(ncol(predictorsFit))) {
-    tempPredictorName <- .saTermNames(colnames(predictorsFit)[i], variables = c(options[["covariates"]], options[["factors"]]))
+    tempPredictorName <- .sapTransformationNames(colnames(predictorsFit)[i], fit)
+    if (tempPredictorName == colnames(predictorsFit)[i])
+      tempPredictorName <- .saTermNames(tempPredictorName, variables = c(options[["covariates"]], options[["factors"]]))
     residualPlotResidualVsPredictors[[paste0("residualPlotResidualVsPredictors", i)]] <- createJaspPlot(
       plot         = .saResidualsPlot(x = predictorsFit[,i], y = res, xlab = tempPredictorName, ylab = .saResidualsPlotName(options)),
       title        = gettextf("Residuals vs. %1$s", tempPredictorName),
@@ -112,7 +114,7 @@
     return(tempPlot)
 
   # extract the dataset and compute residuals
-  pred    <- try(unlist(predict(fit)))
+  pred    <- try(stats::predict(fit, newdata = attr(fit, "dataset"))[[".pred_time"]])
   res     <- .sapResiduals(fit, options)
   if (jaspBase::isTryError(res)) {
     tempPlot$setError(conditionMessage(attr(res, "condition")))
@@ -154,10 +156,31 @@
     if (options[["censoringType"]] == "interval" && options[["residualPlotResidualType"]] == "coxSnell")
       stop(gettext("Cox-Snell residuals are not available for interval-censored data."), call. = FALSE)
 
-    residuals(fit, type = switch(
+    .sapResidualValues(fit, type = switch(
       options[["residualPlotResidualType"]],
       "response" = "response",
       "coxSnell" = "coxsnell"
     ))
   }, silent = TRUE))
+}
+
+.sapResidualValues <- function(fit, type) {
+
+  if (length(attr(fit, "modelTerms")[["transformations"]]) == 0)
+    return(stats::residuals(fit, type = type))
+
+  dataset <- attr(fit, "dataset")
+  if (type == "response") {
+    mean <- stats::predict(fit, newdata = dataset, type = "response")[[".pred_time"]]
+    return(unname(fit[["data"]][["Y"]][, 1]) - mean)
+  }
+
+  # Supply raw stresses explicitly: the native model frame contains the
+  # transformed columns, which cannot reconstruct their original inputs.
+  survival <- stats::model.frame(fit, orig = TRUE)[[1]]
+  counting <- "start" %in% colnames(survival)
+  time     <- survival[, if (counting) "stop" else "time"]
+  start    <- if (counting) survival[, "start"] else 0
+  return(summary(fit, type = "cumhaz", t = time, start = start, newdata = dataset,
+    cross = FALSE, ci = FALSE, se = FALSE, tidy = TRUE)[["est"]])
 }

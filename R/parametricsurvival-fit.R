@@ -194,7 +194,10 @@
 }
 .sapFitModel            <- function(dataset, options, distribution, modelTerms, components, previous = NULL, silent = FALSE) {
 
-  if (components > 1) {
+  validation <- try(.sapCheckTransformationData(dataset, modelTerms), silent = silent)
+  if (jaspBase::isTryError(validation)) {
+    fit <- validation
+  } else if (components > 1) {
     fit <- try(.sapmFitMixture(dataset, options, distribution, modelTerms, components, previous), silent = silent)
   } else if (options[["analysisType"]] == "mixture" && options[["mixtureConstrainMinimumSpread"]]) {
     fit <- try(.sapmFitSingle(dataset, options, distribution, modelTerms), silent = silent)

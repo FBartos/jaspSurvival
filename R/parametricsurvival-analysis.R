@@ -33,6 +33,8 @@ ParametricMixtureSurvivalAnalysis <- function(jaspResults, dataset, options, sta
 
 .sapRun <- function(jaspResults, dataset, options) {
 
+  options <- .sapPrepareModelTerms(options)
+
   if (.saSurvivalReady(options)) {
     dataset <- .saCheckDataset(dataset, options, type = "parametric")
     if (options[["analysisType"]] == "mixture") {
@@ -105,7 +107,7 @@ ParametricMixtureSurvivalAnalysis <- function(jaspResults, dataset, options, sta
 .sapDependencies <- c(
   "intervalStart", "intervalEnd", "timeToEvent", "eventStatus", "eventIndicator", "censoringType",
   "factors", "covariates", "weights", "subgroup", "distribution", "includeFullDatasetInSubgroupAnalysis",
-  .sapDistributionOptions, "modelTerms",
+  .sapDistributionOptions, "modelTerms", "advancedSpecification",
   # Coefficient intervals are computed during fitting, not by scaling the standard error.
   "coefficientsConfidenceIntervalLevel"
 )

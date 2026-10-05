@@ -295,7 +295,7 @@
 .sapProbabilityPlotObservedData <- function(dataset, fit, options, dataFunction, output = "probabilityPlot") {
 
   modelFrame <- stats::model.frame(fit)
-  factors    <- intersect(unique(attr(modelFrame, "covnames.orig")), unlist(options[["factors"]], use.names = FALSE))
+  factors    <- .sapFittedFactors(fit, options)
 
   mergeSubgroups <- .sapMergePlotsAcrossSubgroups(options, output)
   if (length(factors) == 0 || (mergeSubgroups && !options[[paste0(output, "MergePlotsAcrossFactors")]])) {
