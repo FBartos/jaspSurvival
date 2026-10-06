@@ -4,21 +4,26 @@
   if (is.character(expression) && length(expression) == 1L && trimws(expression) == "")
     return(numeric(0))
 
-  value <- expression
-  if (is.character(expression) && length(expression) == 1L) {
-    text  <- gsub("[;|\r\n\t]+", ",", trimws(expression))
-    value <- try(eval(parse(text = paste0("c(", text, ")")), envir = baseenv()), silent = TRUE)
-    if (inherits(value, "try-error")) {
-      text  <- paste(strsplit(text, "[[:space:]]+")[[1L]], collapse = ",")
-      value <- try(eval(parse(text = paste0("c(", text, ")")), envir = baseenv()), silent = TRUE)
-    }
-  }
-
-  if (!is.numeric(value) || is.complex(value) || length(value) == 0L || any(!is.finite(value)))
+  value <- .sapNumericExpression(expression, multiple = TRUE, allowSpaces = TRUE)
+  if (!.sapFiniteNumeric(value))
     .quitAnalysis(gettextf("The parameter restriction for '%1$s' in '%2$s' must contain finite numeric values or expressions, separated by commas or semicolons.",
                           jaspBase::decodeColNames(variable), modelTitle))
 
   return(unname(value))
+}
+
+.sapModelTermRestrictions <- function(row, variable, modelTitle, components, mixture) {
+
+  if (!mixture)
+    return(list(.sapParseParameterRestriction(row[["parameterRestriction"]], variable, modelTitle)))
+
+  rows <- row[["componentRestrictions"]]
+  keys <- vapply(rows, function(component) component[["component"]][[1L]], character(1))
+  return(lapply(seq_len(components), function(k) {
+    component <- rows[[match(as.character(k), keys)]]
+    title     <- gettextf("%1$s, component %2$i", modelTitle, k)
+    return(.sapParseParameterRestriction(component[["parameterRestriction"]], variable, title))
+  }))
 }
 .sapValidateParameterRestrictions <- function(dataset, options) {
 
@@ -93,9 +98,10 @@
     return(numeric(0))
 
   return(unlist(lapply(seq_len(components), function(k) {
-    if (length(regression[[k]]) == 0L) return(numeric(0))
-    names <- if (k == 1L) names(regression[[k]]) else paste0(family[["location"]], k, "(", names(regression[[k]]), ")")
-    return(stats::setNames(as.numeric(regression[[k]]), names))
+    if (length(regression[[k]]) == 0L)
+      return(numeric(0))
+    parameters <- .sapmRegressionParameterNames(names(regression[[k]]), family, k)
+    return(stats::setNames(as.numeric(regression[[k]]), parameters))
   }), use.names = TRUE))
 }
 .sapmParameterOrder <- function(mixture, family, components, covariates) {
@@ -103,10 +109,18 @@
   if (length(covariates) == 0L)
     return(mixture[["dlist"]][["pars"]])
 
-  return(c(mixture[["dlist"]][["pars"]], unlist(lapply(seq_len(components), function(k) {
-    if (k == 1L) return(covariates)
-    return(paste0(family[["location"]], k, "(", covariates, ")"))
-  }), use.names = FALSE)))
+  regression <- unlist(lapply(seq_len(components), function(k)
+    .sapmRegressionParameterNames(covariates, family, k)), use.names = FALSE)
+  return(c(mixture[["dlist"]][["pars"]], regression))
+}
+
+.sapmRegressionParameterNames <- function(covariates, family, component) {
+
+  # flexsurv leaves the first component's covariate names bare; later components
+  # are ancillary formulas and use locationK(covariate) names.
+  if (component == 1L)
+    return(covariates)
+  return(paste0(family[["location"]], component, "(", covariates, ")"))
 }
 .sapRegressionSpaces <- function(fit) {
 
@@ -122,4 +136,35 @@
     free   <- setdiff(seq_len(ncol(design)), fixed)
     return(list(design = design[, free, drop = FALSE], offset = offset))
   }))
+}
+
+.sapModelsNested <- function(fit0, fit1) {
+
+  if (fit1[["npars"]] <= fit0[["npars"]])
+    return(FALSE)
+
+  spaces0 <- .sapRegressionSpaces(fit0)
+  spaces1 <- .sapRegressionSpaces(fit1)
+  if (length(spaces0) != length(spaces1))
+    return(FALSE)
+
+  normalize <- function(design) {
+    norm <- sqrt(colSums(design^2))
+    norm[norm == 0] <- 1
+    return(sweep(design, 2, norm, "/"))
+  }
+  rank <- function(design) if (ncol(design) == 0L) 0L else qr(normalize(design))[["rank"]]
+  for (k in seq_along(spaces0)) {
+    if (!identical(rownames(spaces0[[k]][["design"]]), rownames(spaces1[[k]][["design"]])))
+      return(FALSE)
+    design0    <- spaces0[[k]][["design"]]
+    design1    <- spaces1[[k]][["design"]]
+    difference <- spaces0[[k]][["offset"]] - spaces1[[k]][["offset"]]
+    # Fixed coefficients create an affine offset. Both that offset and every
+    # free design column must be representable in the larger model's space.
+    if (rank(cbind(design1, design0, difference)) != rank(design1))
+      return(FALSE)
+  }
+
+  return(TRUE)
 }

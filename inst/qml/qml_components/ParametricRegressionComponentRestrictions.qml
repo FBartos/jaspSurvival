@@ -4,20 +4,18 @@ import QtQuick
 import JASP.Controls
 import JASP
 
-ComponentsListBase
+ParametricRestrictionSlots
 {
 	id: restrictions
 	property int componentCount: 1
 	property real rowSpacing: 4 * jaspTheme.uiScale
 	readonly property real rowHeight: jaspTheme.comboBoxHeight
 	optionKey: "component"
-	addItemManually: false
 	implicitWidth: componentRows.width
 	implicitHeight: componentRows.height
 	preferredWidth: implicitWidth
 	preferredHeight: implicitHeight
-	// Keep all four supported slots stable: rebuilding a nested source can restore stale row defaults.
-	source: [{values: ["1", "2", "3", "4"]}]
+	restrictionKeys: ["1", "2", "3", "4"]
 	rowComponent: ParametricFixedParameter
 	{
 		name: "parameterRestriction"
@@ -34,19 +32,10 @@ ComponentsListBase
 		Repeater
 		{
 			model: restrictions.model
-			delegate: FocusScope
+			delegate: ParametricRestrictionRow
 			{
-				id: itemWrapper
-				property var rowComponentItem: model.rowComponent
+				rowComponentItem: model.rowComponent
 				visible: Number(model.value) <= restrictions.componentCount
-				width: rowComponentItem ? rowComponentItem.width : 0
-				height: rowComponentItem ? rowComponentItem.height : 0
-				Component.onCompleted: {
-					if (rowComponentItem) {
-						rowComponentItem.parent = itemWrapper;
-						rowComponentItem.anchors.left = itemWrapper.left;
-					}
-				}
 			}
 		}
 	}

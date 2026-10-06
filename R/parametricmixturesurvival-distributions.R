@@ -39,7 +39,8 @@
 
   return(unname(inits))
 }
-.sapmFixedNativeParameters <- function(fixed) {
+.sapmFixedNativeParameters      <- function(fixed) {
+
   return(unlist(lapply(seq_along(fixed), function(k) {
     if (length(fixed[[k]]) == 0L)
       return(numeric(0))

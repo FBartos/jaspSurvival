@@ -33,7 +33,8 @@ ParametricMixtureSurvivalAnalysis <- function(jaspResults, dataset, options, sta
 
 .sapRun <- function(jaspResults, dataset, options) {
 
-  options <- .sapPrepareModelTerms(options)
+  options           <- .sapPrepareModelTerms(options)
+  # Preserve rows omitted from fitting for missing-outcome predictions and exports.
   predictionDataset <- dataset
 
   if (.saSurvivalReady(options)) {

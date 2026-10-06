@@ -45,12 +45,6 @@ Upgrades
 		}
 		ChangeSetValue
 		{
-			name: "modelTermModifiers"
-			condition: function(options) { return options["modelTermModifiers"] === undefined; }
-			jsonValue: []
-		}
-		ChangeSetValue
-		{
 			name: "restrictParameters"
 			condition: function(options) { return options["restrictParameters"] === undefined; }
 			jsonValue: false
@@ -80,12 +74,6 @@ Upgrades
 			name: "advancedSpecification"
 			condition: function(options) { return options["advancedSpecification"] === undefined; }
 			jsonValue: false
-		}
-		ChangeSetValue
-		{
-			name: "modelTermModifiers"
-			condition: function(options) { return options["modelTermModifiers"] === undefined; }
-			jsonValue: []
 		}
 		ChangeSetValue
 		{

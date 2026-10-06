@@ -32,7 +32,11 @@ VariablesForm
 	property bool countingCensoring: false
 	readonly property int factorCount: factors.count
 	readonly property int subgroupCount: subgroup.count
-	readonly property var predictionPredictors: covariates.columnsNames.concat(factors.columnsNames, subgroup.columnsNames).filter(function(value, index, values) { return values.indexOf(value) === index; })
+	readonly property var predictionPredictors:
+	{
+		let predictors = covariates.columnsNames.concat(factors.columnsNames, subgroup.columnsNames);
+		return predictors.filter(function(value, index, values) { return values.indexOf(value) === index; });
+	}
 
 	removeInvisibles:	true
 	preferredHeight:	((rightCensoring  || intervalCensoring) ? 475 : 550 ) * jaspTheme.uiScale

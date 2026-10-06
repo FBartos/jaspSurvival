@@ -77,10 +77,10 @@
   emSurvObject <- .saGetSurvObject(emOptions, dataset)
 
   # the M-steps always estimate the intercept (flexsurvreg ignores its removal as well)
-  termLabels  <- attr(stats::terms(formula), "term.labels")
-  emFormula   <- stats::reformulate(if (length(termLabels) > 0) termLabels else "1", response = .sapGetFormula(emOptions, modelTerms, dataset)[[2]])
-  covariates  <- stats::model.matrix(emFormula, stats::model.frame(emFormula, dataset))[, -1, drop = FALSE]
-  mixture     <- .sapmMixtureDistribution(family, components)
+  termLabels     <- attr(stats::terms(formula), "term.labels")
+  emFormula      <- stats::reformulate(if (length(termLabels) > 0) termLabels else "1", response = .sapGetFormula(emOptions, modelTerms, dataset)[[2]])
+  covariates     <- stats::model.matrix(emFormula, stats::model.frame(emFormula, dataset))[, -1, drop = FALSE]
+  mixture        <- .sapmMixtureDistribution(family, components)
   parameterNames <- .sapmParameterOrder(mixture, family, components, colnames(covariates))
 
   # the solution with one component fewer supplies the split starts
@@ -122,6 +122,8 @@
 
     for (state in states) {
 
+      # A restriction identifies a component; ordering by median would move its
+      # fixed baseline or regression values to a different component.
       order  <- if (length(nativeFixed) > 0L) seq_len(components) else .sapmComponentOrder(family, state[["base"]])
       inits  <- .sapmInits(mixture, state[["base"]][order], state[["beta"]][order], state[["probabilities"]][order])
       native <- .sapmNativeFit(formula, dataset, options, family, components, mixture, inits, caseWeights, constraint = constraint, fixed = nativeFixed, parameterNames = parameterNames)
@@ -462,20 +464,7 @@
 
   if (length(fixed) > 0L) {
 
-    dlist <- flexsurv::flexsurv.dists[[family[["family"]]]]
-    if (!is.null(constraint))
-      dlist <- .sapmConstraintDistribution(family[["family"]], constraint, family)
-    fitCall <- list(formula = emFormula, data = dataset, weights = weights, dist = dlist, hessian = FALSE)
-    if (!is.null(previous))
-      fitCall[["inits"]] <- c(previous[["base"]], previous[["beta"]])
-    if (!is.null(constraint)) {
-      bounds <- .sapmConstraintBounds(constraint, family, 1L, length(family[["pars"]]) + ncol(covariates))
-      fitCall[["method"]] <- "L-BFGS-B"
-      fitCall[["lower"]]  <- bounds[["lower"]]
-      fitCall[["upper"]]  <- bounds[["upper"]]
-      fitCall[["control"]] <- list(maxit = 1000, factr = 1e5, fnscale = sum(weights), pgtol = 1e-6)
-    }
-    fit  <- suppressWarnings(suppressMessages(do.call(flexsurv::flexsurvreg, .sapFixedFitCall(fitCall, fixed, c(family[["pars"]], colnames(covariates))))))
+    fit  <- .sapmFixedMStep(emFormula, dataset, covariates, family, weights, previous, constraint, fixed)
     base <- fit[["res"]][family[["pars"]], "est"]
     beta <- fit[["res"]][fit[["covpars"]], "est"]
 
@@ -580,6 +569,33 @@
     parameters = .sapmParameters(family, base, beta, covariates)
   ))
 }
+.sapmFixedMStep                 <- function(formula, dataset, covariates, family, weights, previous, constraint, fixed) {
+
+  dlist <- flexsurv::flexsurv.dists[[family[["family"]]]]
+  if (!is.null(constraint))
+    dlist <- .sapmConstraintDistribution(family[["family"]], constraint, family)
+  fitCall <- list(
+    formula = formula,
+    data    = dataset,
+    weights = weights,
+    dist    = dlist,
+    hessian = FALSE
+  )
+  if (!is.null(previous))
+    fitCall[["inits"]] <- c(previous[["base"]], previous[["beta"]])
+  if (!is.null(constraint)) {
+    bounds <- .sapmConstraintBounds(constraint, family, 1L, length(family[["pars"]]) + ncol(covariates))
+    fitCall[["method"]]  <- "L-BFGS-B"
+    fitCall[["lower"]]   <- bounds[["lower"]]
+    fitCall[["upper"]]   <- bounds[["upper"]]
+    fitCall[["control"]] <- list(maxit = 1000, factr = 1e5, fnscale = sum(weights), pgtol = 1e-6)
+  }
+
+  parameterNames <- c(family[["pars"]], colnames(covariates))
+  fitCall        <- .sapFixedFitCall(fitCall, fixed, parameterNames)
+  return(suppressWarnings(suppressMessages(do.call(flexsurv::flexsurvreg, fitCall))))
+}
+
 .sapmParameters                 <- function(family, base, beta, covariates) {
 
   # natural parameters of a component for each observation (covariates act on the transformed location parameter)

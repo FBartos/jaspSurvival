@@ -24,7 +24,7 @@
     return(.sapmComponentPlotForData(fit, options))
 
   dataset <- attr(fit, "dataset")
-  factors <- intersect(names(stats::model.frame(fit)), unlist(options[["factors"]], use.names = FALSE))
+  factors <- .sapFittedFactors(fit, options)
   if (options[["mixtureComponentPlotMergePlotsAcrossFactors"]] || length(factors) == 0)
     return(.sapmComponentPlotForData(fit, options, dataset))
 
@@ -212,7 +212,7 @@
   logDensity <- type == "density" && options[["mixtureComponentPlotTransformXAxis"]] == "log"
   predictionData <- NULL
   if (type == "density") {
-    predictors <- intersect(names(stats::model.frame(fit)), unlist(c(options[["factors"]], options[["covariates"]]), use.names = FALSE))
+    predictors <- unique(unlist(attr(fit, "modelTerms")[["components"]], use.names = FALSE))
     groups <- .sapPredictorGroups(dataset[predictors])
     predictionData <- dataset[!duplicated(groups), predictors, drop = FALSE]
     # Combine identical predictor rows, retaining their observed proportions.

@@ -18,8 +18,8 @@
       if (is.character(expression) && length(expression) == 1L && trimws(expression) == "")
         next
 
-      value <- try(if (is.character(expression)) eval(parse(text = expression), envir = baseenv()) else expression, silent = TRUE)
-      valid <- !inherits(value, "try-error") && is.numeric(value) && length(value) == 1L && is.finite(value)
+      value <- .sapNumericExpression(expression)
+      valid <- .sapFiniteNumeric(value, expectedLength = 1L)
       if (valid)
         valid <- is.finite(suppressWarnings(family[["transforms"]][[i]](value)))
       if (!valid)
@@ -126,7 +126,7 @@
 }
 .sapFitSingle <- function(dataset, options, distribution, modelTerms, hessian = TRUE) {
 
-  fixed <- .sapFixedParameters(options, distribution)[[1L]]
+  fixed      <- .sapFixedParameters(options, distribution)[[1L]]
   formula    <- .sapGetFormula(options, modelTerms, dataset)
   regression <- .sapRegressionFixed(dataset, modelTerms, formula)
   fixed      <- c(fixed, regression)
