@@ -24,7 +24,7 @@ import "./qml_components" as SA
 Form
 {
 	id: form
-	info: mixtureConstrainMinimumSpread.checked ? qsTr("This analysis models survival times as a finite mixture of components from the same parametric family. Constrained maximum likelihood imposes the specified minimum standard deviation of log survival time in every component. Several starting values are refined by EM iterations; the best converged solution found within the bound is reported.") : qsTr("This analysis models survival times as a finite mixture of components from the same parametric family. Several starting values are refined by EM iterations before maximum likelihood estimation. The best non-degenerate solution found is reported. If all solutions are degenerate, the best is reported with a warning.")
+	info: qsTr("This analysis models survival times as a finite mixture of components from the same parametric family.")
 
 	property bool	categoricalPredictionLevelsPossible:		variables.factorCount > 0 && models.variableCount > 0
 	property bool	mergeDistributionsAvailable:				distribution.value === "all" && models.selectionAllowsMerging

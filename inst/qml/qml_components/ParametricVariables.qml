@@ -133,6 +133,7 @@ VariablesForm
 		name:			 	"subgroup"
 		id:					subgroup
 		title:			 	qsTr("Subgroup")
+		height:				1.5 * jaspTheme.defaultSingleItemListHeight
 		allowedColumns:		["nominal"]
 		info: qsTr("Select one or more factors for subgroup analysis. Separate models are fitted for each observed combination of their levels.")
 	}
