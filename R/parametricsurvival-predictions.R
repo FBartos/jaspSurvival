@@ -226,7 +226,7 @@
   data$at              <- optionsSequence
   data <- .sapAddRowModelInformation(data, fit)
 
-  if (!is.null(attr(fit, "label")))
+  if (!is.null(attr(fit, "label")) && attr(fit, "label") != "")
     tempTable$addFootnote(attr(fit, "label"))
   for (message in predictionWarnings)
     tempTable$addFootnote(message)
@@ -307,7 +307,7 @@
   data$at              <- timeSequence
   data <- .sapAddRowModelInformation(data, fit)
 
-  if (!is.null(attr(fit, "label")))
+  if (!is.null(attr(fit, "label")) && attr(fit, "label") != "")
     tempTable$addFootnote(attr(fit, "label"))
 
   tempTable$setData(data)

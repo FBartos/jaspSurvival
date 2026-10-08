@@ -333,7 +333,7 @@
   }
 
   # add footnotes
-  if (!is.null(attr(fit, "label")))
+  if (!is.null(attr(fit, "label")) && attr(fit, "label") != "")
     covarianceMatrixTable$addFootnote(attr(fit, "label"))
   covarianceMatrixTable$addFootnote(gettext("The covariance matrix uses the estimation scale: distribution parameters constrained to be positive are log-transformed. This scale can differ from the coefficients table."))
   if (!is.null(attr(fit, "mixture")))
