@@ -18,47 +18,71 @@
 # Starting memberships for the mixture estimator.
 .sapmStarts                     <- function(options, family, survObject, emSurvObject, components, previous) {
 
-  logTime <- .sapmLogTimes(emSurvObject)
-  starts  <- list()
-  add     <- function(name, posterior) starts[[length(starts) + 1]] <<- list(name = name, posterior = posterior)
+  logTime       <- .sapmLogTimes(emSurvObject)
+  probabilities <- .sapmStartMembershipProbabilities(options)
+  # Keep decimal complements stable across probability and softening inputs.
+  softness      <- signif(1 - probabilities, 15)
+  starts        <- list()
+  add <- function(name, posterior, probabilityIndex) {
+    if (probabilityIndex > 1)
+      name <- paste0(name, "Probability", probabilityIndex)
+    starts[[length(starts) + 1]] <<- list(name = name, posterior = posterior)
+  }
+  addPartition <- function(name, membership) {
+    for (i in seq_along(probabilities))
+      add(name, .sapmSoftPosterior(membership, components, softness = softness[i]), i)
+  }
 
   # the random draws are seeded so that the starting values do not depend on the preceding fits
   # (the solution with one component fewer is fitted first when it is not part of the analysis)
   if (options[["mixtureStartKmeans"]]) {
     jaspBase::.setSeedJASP(options)
-    add("kmeans", .sapmSoftPosterior(.sapmKmeansMembership(logTime, components), components))
+    addPartition("kmeans", .sapmKmeansMembership(logTime, components))
   }
 
-  if (options[["mixtureStartQuantiles"]]) {
-    add("quantiles", .sapmSoftPosterior(.sapmQuantileMembership(logTime, components), components))
-    # the equal-rank partition is complemented by partitions that isolate the tails
+  if (options[["mixtureStartQuantiles"]])
+    addPartition("quantiles", .sapmQuantileMembership(logTime, components))
+
+  if (options[["mixtureStartTails"]]) {
     shares <- .sapmTailShares(components)
     for (i in seq_along(shares))
-      add(paste0("tails", i), .sapmSoftPosterior(.sapmTailMembership(logTime, shares[[i]], components), components))
+      addPartition(paste0("tails", i), .sapmTailMembership(logTime, shares[[i]], components))
   }
 
   if (options[["mixtureStartSplit"]] && !is.null(previous))
-    for (j in seq_len(components - 1)) {
-      posterior <- try(.sapmSplitPosterior(family, survObject, previous, j), silent = TRUE)
+    for (j in seq_len(components - 1)) for (i in seq_along(probabilities)) {
+      posterior <- try(.sapmSplitPosterior(family, survObject, previous, j, softness[i]), silent = TRUE)
       if (!jaspBase::isTryError(posterior))
-        add(paste0("split", j), posterior)
+        add(paste0("split", j), posterior, i)
     }
 
   if (options[["mixtureStartRandom"]]) {
     jaspBase::.setSeedJASP(options)
     events <- .sapmEventIndicator(emSurvObject)
     for (i in seq_len(options[["mixtureStartRandomCount"]]))
-      add(paste0("random", i), .sapmSoftPosterior(.sapmRandomMembership(logTime, events, components), components))
+      addPartition(paste0("random", i), .sapmRandomMembership(logTime, events, components))
   }
 
   return(starts)
 }
-.sapmSoftPosterior              <- function(membership, components) {
+.sapmStartMembershipProbabilities <- function(options) {
+
+  probabilities <- .sapCleanCustomOptions(options[["mixtureStartMembershipProbabilities"]],
+    gettext("Membership probabilities were specified in an incorrect format. Try '0.95, 0.99'."))
+
+  if (any(probabilities <= 0.5 | probabilities >= 1))
+    .quitAnalysis(gettext("Membership probabilities must be greater than 0.5 and less than 1."))
+  if (anyDuplicated(probabilities))
+    .quitAnalysis(gettext("Membership probabilities must be distinct."))
+
+  return(probabilities)
+}
+.sapmSoftPosterior              <- function(membership, components, softness = 0.05) {
 
   # soft start avoids empty components
   nObs      <- length(membership)
-  posterior <- matrix(0.05 / (components - 1), nObs, components)
-  posterior[cbind(seq_len(nObs), membership)] <- 0.95
+  posterior <- matrix(softness / (components - 1), nObs, components)
+  posterior[cbind(seq_len(nObs), membership)] <- 1 - softness
 
   return(posterior)
 }
@@ -119,7 +143,7 @@
 
   return(apply(abs(outer(logTime, centers, "-")), 1, which.min))
 }
-.sapmSplitPosterior             <- function(family, survObject, previous, j) {
+.sapmSplitPosterior             <- function(family, survObject, previous, j, softness = 0.05) {
 
   # component j of the previous solution is split into a lower and an upper child at its median: events are
   # assigned by their observed time and censored observations by the probability of the censored interval
@@ -131,18 +155,18 @@
   survivalAt <- function(q) do.call(family[["p"]], c(list(q), expand(), list(lower.tail = FALSE)))
   failureAt  <- function(q) do.call(family[["p"]], c(list(q), expand(), list(lower.tail = TRUE)))
 
-  lower <- ifelse(.sapmObservedTimes(survObject) <= quantileAt(0.5), 0.95, 0.05)
+  lower <- ifelse(.sapmObservedTimes(survObject) <= quantileAt(0.5), 1 - softness, softness)
 
   if (type %in% c("right", "counting")) {
     censored <- survObject[, "status"] != 1
     survival <- survivalAt(survObject[, if (type == "right") "time" else "stop"])
-    lower[censored] <- pmin(pmax(pmax(0, (survival - 0.5) / survival), 0.05), 0.95)[censored]
+    lower[censored] <- pmin(pmax(pmax(0, (survival - 0.5) / survival), softness), 1 - softness)[censored]
   } else {
     status   <- survObject[, "status"]
     survival <- survivalAt(survObject[, "time1"])
     failure  <- failureAt(survObject[, "time1"])
-    lower[status == 0] <- pmin(pmax(pmax(0, (survival - 0.5) / survival), 0.05), 0.95)[status == 0]
-    lower[status == 2] <- pmin(pmax(pmin(1, 0.5 / failure), 0.05), 0.95)[status == 2]
+    lower[status == 0] <- pmin(pmax(pmax(0, (survival - 0.5) / survival), softness), 1 - softness)[status == 0]
+    lower[status == 2] <- pmin(pmax(pmin(1, 0.5 / failure), softness), 1 - softness)[status == 2]
   }
   lower[!is.finite(lower)] <- 0.5
 

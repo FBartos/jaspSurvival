@@ -19,7 +19,7 @@
 # (see .sapRun). Starting values, distribution functions, and plots have separate files.
 .sapmDependencies <- c(
   "mixtureComponents", "mixtureMaximumComponents",
-  "mixtureStartKmeans", "mixtureStartQuantiles", "mixtureStartSplit", "mixtureStartRandom", "mixtureStartRandomCount",
+  "mixtureStartKmeans", "mixtureStartQuantiles", "mixtureStartTails", "mixtureStartSplit", "mixtureStartRandom", "mixtureStartRandomCount", "mixtureStartMembershipProbabilities",
   "mixtureEmIterations", "setSeed", "seed", "compareModelsAcrossComponents",
   "mixtureConstrainMinimumSpread", "mixtureConstrainMinimumSpreadType", "mixtureMinimumLogTimeSdRelative", "mixtureMinimumLogTimeSd"
 )
@@ -30,8 +30,11 @@
   if (!hasMixtures && !options[["mixtureConstrainMinimumSpread"]])
     return()
 
-  if (hasMixtures && !options[["mixtureStartKmeans"]] && !options[["mixtureStartQuantiles"]] && !options[["mixtureStartSplit"]] && !options[["mixtureStartRandom"]])
+  if (hasMixtures && !options[["mixtureStartKmeans"]] && !options[["mixtureStartQuantiles"]] && !options[["mixtureStartTails"]] && !options[["mixtureStartSplit"]] && !options[["mixtureStartRandom"]])
     .quitAnalysis(gettext("At least one starting value method must be selected."))
+
+  if (hasMixtures)
+    .sapmStartMembershipProbabilities(options)
 
   # the starting values cluster log event times
   if (options[["censoringType"]] == "interval") {
@@ -87,6 +90,8 @@
   if (length(starts) == 0)
     stop(gettext("No starting values could be constructed for the mixture model."))
 
+  startProgressbar(length(starts), label = gettextf("Fitting %1$s mixture (%2$i components)", .sapOption2DistributionName(distribution), components))
+
   # every starting value is refined by a few EM iterations and the likelihood is then maximized directly
   # from the state after the first and after the last EM iteration
   candidates <- list()
@@ -110,6 +115,7 @@
     if (jaspBase::isTryError(states)) {
       if (is.null(fitError))
         fitError <- jaspBase::.extractErrorMessage(states)
+      progressbarTick()
       next
     }
 
@@ -148,6 +154,7 @@
         diagnostics
       )
     }
+    progressbarTick()
   }
 
   if (length(candidates) == 0)

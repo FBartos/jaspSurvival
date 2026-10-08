@@ -24,7 +24,7 @@ import "./qml_components" as SA
 Form
 {
 	id: form
-	info: mixtureConstrainMinimumSpread.checked ? qsTr("This analysis models survival times as a finite mixture of components from the same parametric family. Constrained maximum likelihood imposes the specified minimum standard deviation of log survival time in every component. Several starting values, each refined by EM iterations, are used; the converged solution with the highest likelihood satisfying the bound is reported.") : qsTr("This analysis performs a parametric mixture survival analysis. The survival times are modeled as a finite mixture of components from the same parametric family. The likelihood is maximized directly from several starting values (each refined by a few EM iterations). The non-degenerate solution with the highest likelihood is reported. If all solutions are degenerate, the best of them is reported with a warning.")
+	info: mixtureConstrainMinimumSpread.checked ? qsTr("This analysis models survival times as a finite mixture of components from the same parametric family. Constrained maximum likelihood imposes the specified minimum standard deviation of log survival time in every component. Several starting values are refined by EM iterations; the best converged solution found within the bound is reported.") : qsTr("This analysis models survival times as a finite mixture of components from the same parametric family. Several starting values are refined by EM iterations before maximum likelihood estimation. The best non-degenerate solution found is reported. If all solutions are degenerate, the best is reported with a warning.")
 
 	property bool	categoricalPredictionLevelsPossible:		variables.factorCount > 0 && models.variableCount > 0
 	property bool	mergeDistributionsAvailable:				distribution.value === "all" && models.selectionAllowsMerging
@@ -173,7 +173,7 @@ Form
 					label:		qsTr("Estimation diagnostics")
 					name:		"mixtureDiagnosticsTable"
 					checked:	false
-					info: qsTr("Include a table with the diagnostics of the estimation of each mixture model: the number of starting values, how many of them reached the reported solution, the log-likelihood of the reported and of the next best distinct solution, the number of degenerate candidate solutions, the effective sample size and the effective number of events of the smallest component, optimizer convergence, and whether the Hessian of the likelihood is positive definite.")
+					info: qsTr("Include a table with the diagnostics of the estimation of each mixture model: the number of starting values, how many of them reached the reported solution, the log-likelihood of the reported and of the next best distinct solution, the number of degenerate candidate solutions, the effective sample size and the effective number of events of the smallest component, optimizer convergence, and whether the Hessian of the likelihood is positive definite. Replications indicate agreement between starts, not proof of a global maximum.")
 				}
 
 				CheckBox
@@ -371,7 +371,7 @@ Form
 			Group
 			{
 				title:		qsTr("Starting Values")
-				info: mixtureConstrainMinimumSpread.checked ? qsTr("Select the starting values of the constrained mixture estimation. The converged solution with the highest likelihood satisfying the minimum component spread is reported. More starting values reduce the risk of a local optimum at a higher computational cost.") : qsTr("Select the starting values of the mixture estimation. The likelihood is maximized directly from every selected starting value and the non-degenerate solution with the highest likelihood is reported. If all solutions are degenerate, the best of them is reported with a warning. More starting values make it more likely that the reported solution is the global maximum, at a proportionally higher computational cost.")
+				info: mixtureConstrainMinimumSpread.checked ? qsTr("Select starting values for constrained mixture estimation. The best converged solution found within the minimum spread bound is reported. More starts reduce the risk of a local optimum but take longer.") : qsTr("Select starting values for mixture estimation. The best non-degenerate solution found is reported. If all solutions are degenerate, the best is reported with a warning. More starts reduce the risk of a local optimum but take longer.")
 
 				CheckBox
 				{
@@ -384,17 +384,25 @@ Form
 				CheckBox
 				{
 					name:		"mixtureStartQuantiles"
-					label:		qsTr("Quantiles")
+					label:		qsTr("Equal-sized groups")
 					checked:	true
-					info: qsTr("Start from partitions of the survival times by their quantiles: a partition into groups of equal size and partitions that isolate the tails (the lowest and the highest 15% for two components, 15/70/15% for three components, and 10/40/40/10% for four components). The likelihood is maximized directly from each of these starting values.")
+					info: qsTr("Start from one partition of the ordered survival times into groups of equal size.")
+				}
+
+				CheckBox
+				{
+					name:		"mixtureStartTails"
+					label:		qsTr("Tail partitions")
+					checked:	true
+					info: qsTr("Start from partitions that isolate the tails: 15/85% and 85/15% for two components, 15/70/15% for three, and 10/40/40/10% for four.")
 				}
 
 				CheckBox
 				{
 					name:		"mixtureStartSplit"
-					label:		qsTr("Split of the previous solution")
+					label:		qsTr("Split simpler model")
 					checked:	true
-					info: qsTr("Start from the solution with one component fewer, splitting each of its components into a lower and an upper half. The likelihood is maximized directly from each of these starting values. The solution with one component fewer is estimated for this purpose when it is not part of the analysis.")
+					info: qsTr("Start from a model with one component fewer. Each start splits one of its components at its median, keeping the other components unchanged. The simpler model is fitted when needed.")
 				}
 
 				CheckBox
@@ -403,7 +411,7 @@ Form
 					label:				qsTr("Random")
 					checked:			true
 					childrenOnSameRow:	true
-					info: qsTr("Start from random centres drawn from the observed event times, assigning each observation to the nearest centre. The likelihood is maximized directly from each of these starting values. Random starting values are the main protection against reporting a local optimum.")
+					info: qsTr("Draw independent sets of random centres from the observed event times and assign each observation to the nearest centre. Higher values try more sets of centres.")
 
 					IntegerField
 					{
@@ -415,16 +423,34 @@ Form
 						info: qsTr("Set the number of random starting values.")
 					}
 				}
+
 			}
 
-			IntegerField
+			Group
 			{
-				name:			"mixtureEmIterations"
-				label:			qsTr("EM iterations")
-				defaultValue:	10
-				min:			1
-				max:			1000
-				info: qsTr("Set the number of EM iterations that refine each starting value before the likelihood is maximized directly. The state after the first and after the last EM iteration are both used as starting values of the direct maximization.")
+				title:		qsTr("Initialization Settings")
+				info: qsTr("Apply these settings to every starting value method.")
+
+				FormulaField
+				{
+					name:			"mixtureStartMembershipProbabilities"
+					label:			qsTr("Membership probability")
+					defaultValue:	"0.95, 0.99"
+					// Desktop's formula validation expects a scalar; the analysis validates this vector.
+					inputType:		"string"
+					fieldWidth:		160 * jaspTheme.uiScale
+					info: qsTr("Higher probabilities produce sharper starts. Each starting value is tried with every initial membership probability.")
+				}
+
+				IntegerField
+				{
+					name:			"mixtureEmIterations"
+					label:			qsTr("EM iterations")
+					defaultValue:	10
+					min:			1
+					max:			1000
+					info: qsTr("Set the number of EM iterations that refine each starting value before the likelihood is maximized directly. The state after the first and after the last EM iteration are both used as starting values of the direct maximization.")
+				}
 			}
 		}
 

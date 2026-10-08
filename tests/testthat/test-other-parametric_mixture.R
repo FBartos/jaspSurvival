@@ -2,12 +2,15 @@ context("Other: parametric_mixture")
 
 # This test file was auto-generated from a JASP example file.
 # The JASP file is stored in tests/testthat/jaspfiles/other/.
+# Saved examples retain the softened starts; sharper starts have a separate regression test.
 
 test_that("ParametricMixtureSurvivalAnalysis (analysis 1) results match", {
 
   # Load from JASP example file
   jaspFile <- testthat::test_path("jaspfiles", "other", "parametric_mixture.jasp")
   opts <- jaspTools::analysisOptions(jaspFile)[[1]]
+  opts[["mixtureStartTails"]] <- TRUE
+  opts[["mixtureStartMembershipProbabilities"]] <- "c(0.95)"
   dataset <- jaspTools::extractDatasetFromJASPFile(jaspFile)
 
   # Encode and run analysis
@@ -66,6 +69,8 @@ test_that("ParametricMixtureSurvivalAnalysis (analysis 2) results match", {
   # Load from JASP example file
   jaspFile <- testthat::test_path("jaspfiles", "other", "parametric_mixture.jasp")
   opts <- jaspTools::analysisOptions(jaspFile)[[2]]
+  opts[["mixtureStartTails"]] <- TRUE
+  opts[["mixtureStartMembershipProbabilities"]] <- "c(0.95)"
   dataset <- jaspTools::extractDatasetFromJASPFile(jaspFile)
 
   # Encode and run analysis
@@ -225,6 +230,8 @@ test_that("ParametricMixtureSurvivalAnalysis (analysis 3) results match", {
   # Load from JASP example file
   jaspFile <- testthat::test_path("jaspfiles", "other", "parametric_mixture.jasp")
   opts <- jaspTools::analysisOptions(jaspFile)[[3]]
+  opts[["mixtureStartTails"]] <- TRUE
+  opts[["mixtureStartMembershipProbabilities"]] <- "c(0.95)"
   dataset <- jaspTools::extractDatasetFromJASPFile(jaspFile)
 
   # Encode and run analysis

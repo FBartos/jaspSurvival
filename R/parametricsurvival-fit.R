@@ -54,13 +54,6 @@
   components    <- .sapComponents(options)
   subgroups     <- if (.sapHasSubgroups(options)) .sapSubgroupFactor(dataset, options)
 
-  # mixture models can take a while to fit
-  if (options[["analysisType"]] == "mixture") {
-    nSubgroups <- (!.sapHasSubgroups(options) || options[["includeFullDatasetInSubgroupAnalysis"]]) +
-      if (.sapHasSubgroups(options)) length(unique(subgroups)) else 0
-    startProgressbar(nSubgroups * length(distributions) * length(components), label = gettext("Fitting mixture models"))
-  }
-
   # fit the full dataset
   if (!.sapHasSubgroups(options) || options[["includeFullDatasetInSubgroupAnalysis"]]) {
 
@@ -117,8 +110,6 @@
         out[[distributions[i]]][[as.character(k)]], dataset, options, distributions[i], k,
         previous = out[[distributions[i]]][[as.character(k - 1)]]
       )
-      if (options[["analysisType"]] == "mixture")
-        progressbarTick()
     }
 
     attr(out[[distributions[i]]], "distribution") <- distributions[i]
