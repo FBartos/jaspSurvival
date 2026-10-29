@@ -218,12 +218,34 @@
     # Martingale residual = event indicator - fitted cumulative hazard (also for counting-process data).
     values[[gettext("Cox-Snell residual")]] <- .saExportValue(try(fit[["y"]][, ncol(fit[["y"]])] - stats::residuals(fit, type = "martingale"), silent = TRUE))
   }
-  if (options[["exportFittedValuesRelativeRisk"]])
-    values[[gettext("Fitted relative risk")]] <- .saExportValue(try(stats::predict(fit, type = "risk"), silent = TRUE))
-  if (options[["exportFittedValuesLinearPredictor"]])
-    values[[gettext("Fitted linear predictor")]] <- .saExportValue(try(stats::predict(fit, type = "lp"), silent = TRUE))
+  if (options[["exportFittedValuesRelativeRisk"]] || options[["exportFittedValuesLinearPredictor"]]) {
+    linearPredictor <- try(.saspLinearPredictor(fit), silent = TRUE)
+    if (options[["exportFittedValuesRelativeRisk"]])
+      values[[gettext("Fitted relative risk")]] <- .saExportValue(if (jaspBase::isTryError(linearPredictor)) linearPredictor else exp(linearPredictor))
+    if (options[["exportFittedValuesLinearPredictor"]])
+      values[[gettext("Fitted linear predictor")]] <- .saExportValue(linearPredictor)
+  }
 
   return(values)
+}
+
+# Linear predictor centred at the covariate means within each stratum, as predict.coxph(type = "lp").
+# predict.coxph() fails for strata with a frailty term (its design matrix keeps the frailty column,
+# which has no coefficient), so the stored linear predictor, which includes the frailty, is re-centred.
+.saspLinearPredictor <- function(fit) {
+
+  linearPredictor <- fit[["linear.predictors"]]
+  beta            <- stats::coef(fit)
+  if (is.null(fit[["strata"]]) || length(beta) == 0)
+    return(linearPredictor)
+
+  beta[is.na(beta)] <- 0
+  x            <- fit[["x"]][, names(beta), drop = FALSE]
+  weights      <- if (is.null(fit[["weights"]])) rep(1, nrow(x)) else fit[["weights"]]
+  stratumMeans <- rowsum(x * weights, fit[["strata"]]) / c(rowsum(weights, fit[["strata"]]))
+  shift        <- stratumMeans[match(fit[["strata"]], rownames(stratumMeans)), , drop = FALSE] - rep(fit[["means"]][names(beta)], each = nrow(x))
+
+  return(linearPredictor - drop(shift %*% beta))
 }
 
 .saExportModelPrefix <- function(fit, options, multiple) {
