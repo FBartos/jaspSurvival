@@ -705,14 +705,15 @@ SemiParametricSurvivalAnalysis <- function(jaspResults, dataset, options, state 
       residualPlotResidualVsPredictors[["waitingPlot"]] <- tempPlot
       tempPlot$setError(residuals)
     } else {
-      coefficientResiduals <- options[["residualPlotResidualType"]] %in% c("schoenfeld", "scaledSchoenfeld", "score") && ncol(predictorsFit) > 1
+      # per-coefficient residuals have no frailty column, so match them to predictors by name
+      coefficientResiduals <- options[["residualPlotResidualType"]] %in% c("schoenfeld", "scaledSchoenfeld", "score") && is.matrix(residuals)
       for (i in seq_len(ncol(predictorsFit))) {
 
         # skip frailty terms
         if (grepl("frailty", colnames(predictorsFit)[i]))
           next
 
-        tempResiduals     <- if (coefficientResiduals) residuals[, i] else residuals
+        tempResiduals     <- if (coefficientResiduals) residuals[, colnames(predictorsFit)[i]] else residuals
         tempPredictorName <- .saTermNames(colnames(predictorsFit)[i], c(options[["covariates"]], options[["factors"]]))
         tempPlot <- createJaspPlot(
           title    = gettextf("Residuals vs. %1$s", tempPredictorName),
